@@ -61,7 +61,8 @@ var _ = Describe("Docker", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		cake = &layercake.Docker{
-			Graph: graph,
+			Graph:  graph,
+			Driver: driver,
 		}
 	})
 
