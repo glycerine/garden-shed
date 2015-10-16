@@ -3,20 +3,23 @@ package layercake
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
 )
 
 type Docker struct {
-	Graph *graph.Graph
+	Graph  *graph.Graph
+	Driver graphdriver.Driver
 }
 
 func (d *Docker) DriverName() string {
-	return d.Graph.Driver().String()
+	return d.Driver.String()
 }
 
 func (d *Docker) Create(containerID ID, imageID ID) error {
@@ -28,7 +31,7 @@ func (d *Docker) Create(containerID ID, imageID ID) error {
 }
 
 func (d *Docker) Register(image *image.Image, layer archive.ArchiveReader) error {
-	return d.Graph.Register(image, layer)
+	return d.Graph.Register(&descriptor{image}, layer)
 }
 
 func (d *Docker) Get(id ID) (*image.Image, error) {
@@ -40,15 +43,11 @@ func (d *Docker) Remove(id ID) error {
 }
 
 func (d *Docker) Path(id ID) (string, error) {
-	return d.Graph.Driver().Get(id.GraphID(), "")
+	return d.Driver.Get(id.GraphID(), "")
 }
 
 func (d *Docker) IsLeaf(id ID) (bool, error) {
-	heads, err := d.Graph.Heads()
-	if err != nil {
-		return false, err
-	}
-
+	heads := d.Graph.Heads()
 	_, ok := heads[id.GraphID()]
 	return ok, nil
 }
@@ -92,4 +91,20 @@ func shaID(id string) string {
 	}
 
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(id)))
+}
+
+type descriptor struct {
+	image *image.Image
+}
+
+func (d descriptor) ID() string {
+	return d.image.ID
+}
+
+func (d descriptor) Parent() string {
+	return d.image.Parent
+}
+
+func (d descriptor) MarshalConfig() ([]byte, error) {
+	return json.Marshal(d.image)
 }
