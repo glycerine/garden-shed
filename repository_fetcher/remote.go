@@ -39,33 +39,36 @@ func (r *Remote) Fetch(u *url.URL, diskQuota int64) (*Image, error) {
 	var env []string
 	var vols []string
 	for _, layer := range manifest.Layers {
-		if _, err := r.Cake.Get(layercake.DockerImageID(layer.ID)); err == nil {
+		_, err := r.Cake.Get(layercake.DockerImageID(layer.StrongID))
+		if err == nil {
 			continue // got cache
 		}
 
-		if layer.Config != nil {
-			env = append(env, layer.Config.Env...)
-			vols = append(vols, keys(layer.Config.Volumes)...)
+		if layer.Image.Config != nil {
+			env = append(env, layer.Image.Config.Env...)
+			vols = append(vols, keys(layer.Image.Config.Volumes)...)
 		}
 
-		blob, err := conn.GetBlobReader(r.Logger, layer.LayerID)
+		blob, err := conn.GetBlobReader(r.Logger, layer.BlobSum)
 		if err != nil {
 			return nil, err
 		}
 
-		verifiedBlob, err := r.Verifier.Verify(blob, layer.LayerID)
+		verifiedBlob, err := r.Verifier.Verify(blob, layer.BlobSum)
 		if err != nil {
 			return nil, err
 		}
 
 		defer verifiedBlob.Close()
-		if err := r.Cake.Register(&image.Image{ID: layer.ID, Parent: layer.Parent}, verifiedBlob); err != nil {
+
+		err = r.Cake.Register(&image.Image{ID: layer.StrongID.String(), Parent: layer.ParentStrongID.String()}, verifiedBlob)
+		if err != nil {
 			return nil, err
 		}
 	}
 
 	return &Image{
-		ImageID: manifest.Layers[len(manifest.Layers)-1].ID,
+		ImageID: manifest.Layers[len(manifest.Layers)-1].StrongID.String(),
 		Env:     env,
 		Volumes: vols,
 	}, nil
@@ -77,7 +80,7 @@ func (r *Remote) FetchID(u *url.URL) (layercake.ID, error) {
 		return nil, err
 	}
 
-	return layercake.DockerImageID(manifest.Layers[len(manifest.Layers)-1].ID), nil
+	return layercake.DockerImageID(manifest.Layers[len(manifest.Layers)-1].StrongID.String()), nil
 }
 
 func (r *Remote) manifest(u *url.URL) (distclient.Conn, *distclient.Manifest, error) {

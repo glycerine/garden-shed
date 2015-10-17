@@ -42,21 +42,34 @@ var _ = Describe("Fetching from a Remote repo", func() {
 		existingLayers = map[string]bool{}
 
 		manifests = map[string]*distclient.Manifest{
-			"bad": &distclient.Manifest{
-				Layers: []image.Image{
-					{LayerID: "DOES_NOT_VERIFY"},
-				},
-			},
 			"latest": &distclient.Manifest{
-				Layers: []image.Image{
+				Layers: []distclient.Layer{
 					{},
 				},
 			},
 			"some-tag": &distclient.Manifest{
-				Layers: []image.Image{
-					{LayerID: "abc-def", ID: "abc-id", Parent: "abc-parent-id", Config: &runconfig.Config{Env: []string{"a", "b"}, Volumes: map[string]struct{}{"vol1": struct{}{}}}},
-					{LayerID: "ghj-klm", ID: "ghj-id"},
-					{LayerID: "klm-nop", ID: "klm-id", Config: &runconfig.Config{Env: []string{"d", "e", "f"}, Volumes: map[string]struct{}{"vol2": struct{}{}}}},
+				Layers: []distclient.Layer{
+					{
+						BlobSum:        "abc-def",
+						StrongID:       "abc-id",
+						ParentStrongID: "abc-parent-id",
+						Image: image.Image{
+							Config: &runconfig.Config{
+								Env:     []string{"a", "b"},
+								Volumes: map[string]struct{}{"vol1": struct{}{}},
+							},
+						},
+					},
+					{BlobSum: "ghj-klm", StrongID: "ghj-id"},
+					{
+						BlobSum:  "klm-nop",
+						StrongID: "klm-id",
+						Image: image.Image{
+							Config: &runconfig.Config{
+								Env:     []string{"d", "e", "f"},
+								Volumes: map[string]struct{}{"vol2": struct{}{}}},
+						},
+					},
 				},
 			},
 		}
@@ -146,7 +159,7 @@ var _ = Describe("Fetching from a Remote repo", func() {
 			Expect(fakeCake.RegisterCallCount()).To(Equal(3))
 		})
 
-		It("registers the right layer contents", func() {
+		It("registers the layer contents under its Strong IDs", func() {
 			_, err := remote.Fetch(parseURL("docker:///foo#some-tag"), 67)
 			Expect(err).NotTo(HaveOccurred())
 
