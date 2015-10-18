@@ -9,6 +9,7 @@ import (
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
+	"github.com/docker/docker/daemon/graphdriver/aufs"
 )
 
 type Docker struct {
@@ -40,7 +41,11 @@ func (d *Docker) Remove(id ID) error {
 }
 
 func (d *Docker) Path(id ID) (string, error) {
-	return d.Graph.Driver().Get(id.GraphID(), "")
+	return d.Graph.Driver().(*aufs.Driver).Get(id.GraphID(), "")
+}
+
+func (d *Docker) QuotaedPath(id ID) (string, error) {
+	return d.Graph.Driver().(*aufs.Driver).GetQuotaed(id.GraphID(), "")
 }
 
 func (d *Docker) IsLeaf(id ID) (bool, error) {

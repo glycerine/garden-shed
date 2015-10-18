@@ -1,6 +1,7 @@
 package rootfs_provider
 
 import (
+	"os/exec"
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-shed/layercake"
@@ -47,7 +48,7 @@ func (provider *ContainerLayerCreator) Create(id string, parentImage *repository
 		return "", nil, err
 	}
 
-	rootPath, err := provider.graph.Path(containerID)
+	rootPath, err := provider.graph.QuotaedPath(containerID)
 	if err != nil {
 		return "", nil, err
 	}
@@ -74,13 +75,26 @@ func (provider *ContainerLayerCreator) namespace(imageID layercake.ID) (layercak
 }
 
 func (provider *ContainerLayerCreator) createNamespacedLayer(id, parentId layercake.ID) error {
-	var err error
-	var path string
-	if path, err = provider.createLayer(id, parentId); err != nil {
+	// create empty base layer to copy image into
+	// this works around aufs not layering permissions nicely
+	if err := provider.graph.Create(id, layercake.DockerImageID("")); err != nil {
 		return err
 	}
 
-	return provider.namespacer.Namespace(path)
+	parent, err := provider.graph.Path(parentId)
+	if err != nil {
+		return err
+	}
+
+	squashed, err := provider.graph.Path(id)
+	if err != nil {
+		return err
+	}
+
+	// copy the whole thing down, we have to do this to get everything new inodes because aufs
+	exec.Command("cp", "-r", parent+"/*", squashed).Run()
+
+	return provider.namespacer.Namespace(squashed)
 }
 
 func (provider *ContainerLayerCreator) createLayer(id, parentId layercake.ID) (string, error) {
@@ -92,7 +106,7 @@ func (provider *ContainerLayerCreator) createLayer(id, parentId layercake.ID) (s
 		return errs(err)
 	}
 
-	namespacedRootfs, err := provider.graph.Path(id)
+	namespacedRootfs, err := provider.graph.QuotaedPath(id)
 	if err != nil {
 		return errs(err)
 	}

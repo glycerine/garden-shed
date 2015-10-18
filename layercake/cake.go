@@ -17,5 +17,6 @@ type Cake interface {
 	Get(id ID) (*image.Image, error)
 	Remove(id ID) error
 	Path(id ID) (string, error)
+	QuotaedPath(id ID) (string, error)
 	IsLeaf(id ID) (bool, error)
 }
