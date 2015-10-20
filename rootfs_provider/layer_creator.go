@@ -49,7 +49,7 @@ func (provider *ContainerLayerCreator) Create(id string, parentImage *repository
 		return "", nil, err
 	}
 
-	rootPath, err := provider.graph.QuotaedPath(containerID)
+	rootPath, err := provider.graph.QuotaedPath(containerID, quota)
 	if err != nil {
 		return "", nil, err
 	}
@@ -87,7 +87,7 @@ func (provider *ContainerLayerCreator) createNamespacedLayer(id, parentId layerc
 		return err
 	}
 
-	squashed, err := provider.graph.QuotaedPath(id)
+	squashed, err := provider.graph.Path(id)
 	if err != nil {
 		return err
 	}
@@ -99,21 +99,4 @@ func (provider *ContainerLayerCreator) createNamespacedLayer(id, parentId layerc
 	}
 
 	return provider.namespacer.Namespace(squashed)
-}
-
-func (provider *ContainerLayerCreator) createLayer(id, parentId layercake.ID) (string, error) {
-	errs := func(err error) (string, error) {
-		return "", err
-	}
-
-	if err := provider.graph.Create(id, parentId); err != nil {
-		return errs(err)
-	}
-
-	namespacedRootfs, err := provider.graph.QuotaedPath(id)
-	if err != nil {
-		return errs(err)
-	}
-
-	return namespacedRootfs, nil
 }

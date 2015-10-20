@@ -52,8 +52,8 @@ func (d *Docker) Path(id ID) (string, error) {
 	return d.Graph.Driver().(*aufs.Driver).Get(id.GraphID(), "")
 }
 
-func (d *Docker) QuotaedPath(id ID) (string, error) {
-	return d.Graph.Driver().(*aufs.Driver).GetQuotaed(id.GraphID(), "")
+func (d *Docker) QuotaedPath(id ID, quota int64) (string, error) {
+	return d.Graph.Driver().(*aufs.Driver).GetQuotaed(id.GraphID(), "", quota)
 }
 
 func (d *Docker) IsLeaf(id ID) (bool, error) {
