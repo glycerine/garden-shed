@@ -1,6 +1,7 @@
 package rootfs_provider
 
 import (
+	"fmt"
 	"os/exec"
 	"sync"
 
@@ -86,13 +87,16 @@ func (provider *ContainerLayerCreator) createNamespacedLayer(id, parentId layerc
 		return err
 	}
 
-	squashed, err := provider.graph.Path(id)
+	squashed, err := provider.graph.QuotaedPath(id)
 	if err != nil {
 		return err
 	}
 
 	// copy the whole thing down, we have to do this to get everything new inodes because aufs
-	exec.Command("cp", "-r", parent+"/*", squashed).Run()
+	output, err := exec.Command("sh", "-c", fmt.Sprintf("cp -a %s/* %s", parent, squashed)).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("Failed to copy the rootfs for aufs (%s): %s", err, output)
+	}
 
 	return provider.namespacer.Namespace(squashed)
 }
