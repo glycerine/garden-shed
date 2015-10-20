@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/docker/docker/daemon/graphdriver/aufs"
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
-	"github.com/docker/docker/daemon/graphdriver/aufs"
 )
 
 type Docker struct {
@@ -37,7 +37,15 @@ func (d *Docker) Get(id ID) (*image.Image, error) {
 }
 
 func (d *Docker) Remove(id ID) error {
-	return d.Graph.Delete(id.GraphID())
+	if err := d.Graph.Delete(id.GraphID()); err != nil {
+		return fmt.Errorf("deleting graph entry: %s", err)
+	}
+
+	if err := d.Graph.Driver().(*aufs.Driver).RemoveQuotaed(id.GraphID()); err != nil {
+		return fmt.Errorf("deleting quotaed layer: %s", err)
+	}
+
+	return nil
 }
 
 func (d *Docker) Path(id ID) (string, error) {
