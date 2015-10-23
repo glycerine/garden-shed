@@ -58,11 +58,11 @@ var _ = Describe("Docker", func() {
 
 			ItCanReadWriteTheLayer := func() {
 				It("can read and write files", func() {
-					p, err := cake.Path(id)
+					p, err := cake.Mount(id)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(ioutil.WriteFile(path.Join(p, "foo"), []byte("hi"), 0700)).To(Succeed())
 
-					p, err = cake.Path(id)
+					p, err = cake.Mount(id)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(path.Join(p, "foo")).To(BeAnExistingFile())
 				})
@@ -88,7 +88,7 @@ var _ = Describe("Docker", func() {
 					ItCanReadWriteTheLayer()
 
 					It("can read the files in the image", func() {
-						p, err := cake.Path(id)
+						p, err := cake.Mount(id)
 						Expect(err).NotTo(HaveOccurred())
 
 						Expect(path.Join(p, id.GraphID())).To(BeAnExistingFile())
@@ -116,14 +116,14 @@ var _ = Describe("Docker", func() {
 					ItCanReadWriteTheLayer()
 
 					It("inherits files from the parent layer", func() {
-						p, err := cake.Path(id)
+						p, err := cake.Mount(id)
 						Expect(err).NotTo(HaveOccurred())
 
 						Expect(path.Join(p, parent.GraphID())).To(BeAnExistingFile())
 					})
 
 					It("can read the files in the image", func() {
-						p, err := cake.Path(id)
+						p, err := cake.Mount(id)
 						Expect(err).NotTo(HaveOccurred())
 
 						Expect(path.Join(p, id.GraphID())).To(BeAnExistingFile())
@@ -141,13 +141,40 @@ var _ = Describe("Docker", func() {
 						})
 
 						id = layercake.ContainerID("abc")
-						createContainerLayer(cake, id, parent)
+						createLayer(cake, id, parent)
 					})
 
 					ItCanReadWriteTheLayer()
 
 					It("inherits files from the parent layer", func() {
-						p, err := cake.Path(id)
+						p, err := cake.Mount(id)
+						Expect(err).NotTo(HaveOccurred())
+
+						Expect(path.Join(p, parent.GraphID())).To(BeAnExistingFile())
+					})
+				})
+			})
+
+			Context("when the layer is namespaced", func() {
+				Context("with a parent", func() {
+					BeforeEach(func() {
+						parent = layercake.DockerImageID("70d8f0edf5c9008eb61c7c52c458e7e0a831649dbb238b93dde0854faae314a8")
+						registerImageLayer(cake, &image.Image{
+							ID:     parent.GraphID(),
+							Parent: "",
+						})
+
+						id = layercake.NamespacedLayerID{
+							LayerID:  parent,
+							CacheKey: "abc",
+						}
+						createLayer(cake, id, parent)
+					})
+
+					ItCanReadWriteTheLayer()
+
+					It("inherits files from the parent layer", func() {
+						p, err := cake.MountNamespaced(id)
 						Expect(err).NotTo(HaveOccurred())
 
 						Expect(path.Join(p, parent.GraphID())).To(BeAnExistingFile())
@@ -159,9 +186,9 @@ var _ = Describe("Docker", func() {
 
 	Describe("IsLeaf", func() {
 		BeforeEach(func() {
-			createContainerLayer(cake, layercake.ContainerID("def"), layercake.DockerImageID(""))
-			createContainerLayer(cake, layercake.ContainerID("abc"), layercake.ContainerID("def"))
-			createContainerLayer(cake, layercake.ContainerID("child2"), layercake.ContainerID("def"))
+			createLayer(cake, layercake.ContainerID("def"), layercake.DockerImageID(""))
+			createLayer(cake, layercake.ContainerID("abc"), layercake.ContainerID("def"))
+			createLayer(cake, layercake.ContainerID("child2"), layercake.ContainerID("def"))
 		})
 
 		Context("when an image has no children", func() {
@@ -190,7 +217,7 @@ var _ = Describe("Docker", func() {
 	})
 })
 
-func createContainerLayer(cake *layercake.Docker, id, parent layercake.ID) {
+func createLayer(cake *layercake.Docker, id, parent layercake.ID) {
 	Expect(cake.Create(id, parent)).To(Succeed())
 }
 

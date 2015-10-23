@@ -47,7 +47,7 @@ func (provider *ContainerLayerCreator) Create(id string, parentImage *repository
 		return "", nil, err
 	}
 
-	rootPath, err := provider.graph.Path(containerID)
+	rootPath, err := provider.graph.Mount(containerID)
 	if err != nil {
 		return "", nil, err
 	}
@@ -74,28 +74,14 @@ func (provider *ContainerLayerCreator) namespace(imageID layercake.ID) (layercak
 }
 
 func (provider *ContainerLayerCreator) createNamespacedLayer(id, parentId layercake.ID) error {
-	var err error
-	var path string
-	if path, err = provider.createLayer(id, parentId); err != nil {
+	if err := provider.graph.Create(id, parentId); err != nil {
+		return err
+	}
+
+	path, err := provider.graph.MountNamespaced(id)
+	if err != nil {
 		return err
 	}
 
 	return provider.namespacer.Namespace(path)
-}
-
-func (provider *ContainerLayerCreator) createLayer(id, parentId layercake.ID) (string, error) {
-	errs := func(err error) (string, error) {
-		return "", err
-	}
-
-	if err := provider.graph.Create(id, parentId); err != nil {
-		return errs(err)
-	}
-
-	namespacedRootfs, err := provider.graph.Path(id)
-	if err != nil {
-		return errs(err)
-	}
-
-	return namespacedRootfs, nil
 }

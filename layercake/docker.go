@@ -39,8 +39,12 @@ func (d *Docker) Remove(id ID) error {
 	return d.Graph.Delete(id.GraphID())
 }
 
-func (d *Docker) Path(id ID) (string, error) {
+func (d *Docker) Mount(id ID) (string, error) {
 	return d.Graph.Driver().Get(id.GraphID(), "")
+}
+
+func (d *Docker) MountNamespaced(id ID) (string, error) {
+	return d.Mount(id)
 }
 
 func (d *Docker) IsLeaf(id ID) (bool, error) {

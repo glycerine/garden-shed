@@ -51,12 +51,21 @@ type FakeCake struct {
 	removeReturns struct {
 		result1 error
 	}
-	PathStub        func(id layercake.ID) (string, error)
-	pathMutex       sync.RWMutex
-	pathArgsForCall []struct {
+	MountStub        func(id layercake.ID) (string, error)
+	mountMutex       sync.RWMutex
+	mountArgsForCall []struct {
 		id layercake.ID
 	}
-	pathReturns struct {
+	mountReturns struct {
+		result1 string
+		result2 error
+	}
+	MountNamespacedStub        func(id layercake.ID) (string, error)
+	mountNamespacedMutex       sync.RWMutex
+	mountNamespacedArgsForCall []struct {
+		id layercake.ID
+	}
+	mountNamespacedReturns struct {
 		result1 string
 		result2 error
 	}
@@ -226,34 +235,67 @@ func (fake *FakeCake) RemoveReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeCake) Path(id layercake.ID) (string, error) {
-	fake.pathMutex.Lock()
-	fake.pathArgsForCall = append(fake.pathArgsForCall, struct {
+func (fake *FakeCake) Mount(id layercake.ID) (string, error) {
+	fake.mountMutex.Lock()
+	fake.mountArgsForCall = append(fake.mountArgsForCall, struct {
 		id layercake.ID
 	}{id})
-	fake.pathMutex.Unlock()
-	if fake.PathStub != nil {
-		return fake.PathStub(id)
+	fake.mountMutex.Unlock()
+	if fake.MountStub != nil {
+		return fake.MountStub(id)
 	} else {
-		return fake.pathReturns.result1, fake.pathReturns.result2
+		return fake.mountReturns.result1, fake.mountReturns.result2
 	}
 }
 
-func (fake *FakeCake) PathCallCount() int {
-	fake.pathMutex.RLock()
-	defer fake.pathMutex.RUnlock()
-	return len(fake.pathArgsForCall)
+func (fake *FakeCake) MountCallCount() int {
+	fake.mountMutex.RLock()
+	defer fake.mountMutex.RUnlock()
+	return len(fake.mountArgsForCall)
 }
 
-func (fake *FakeCake) PathArgsForCall(i int) layercake.ID {
-	fake.pathMutex.RLock()
-	defer fake.pathMutex.RUnlock()
-	return fake.pathArgsForCall[i].id
+func (fake *FakeCake) MountArgsForCall(i int) layercake.ID {
+	fake.mountMutex.RLock()
+	defer fake.mountMutex.RUnlock()
+	return fake.mountArgsForCall[i].id
 }
 
-func (fake *FakeCake) PathReturns(result1 string, result2 error) {
-	fake.PathStub = nil
-	fake.pathReturns = struct {
+func (fake *FakeCake) MountReturns(result1 string, result2 error) {
+	fake.MountStub = nil
+	fake.mountReturns = struct {
+		result1 string
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeCake) MountNamespaced(id layercake.ID) (string, error) {
+	fake.mountNamespacedMutex.Lock()
+	fake.mountNamespacedArgsForCall = append(fake.mountNamespacedArgsForCall, struct {
+		id layercake.ID
+	}{id})
+	fake.mountNamespacedMutex.Unlock()
+	if fake.MountNamespacedStub != nil {
+		return fake.MountNamespacedStub(id)
+	} else {
+		return fake.mountNamespacedReturns.result1, fake.mountNamespacedReturns.result2
+	}
+}
+
+func (fake *FakeCake) MountNamespacedCallCount() int {
+	fake.mountNamespacedMutex.RLock()
+	defer fake.mountNamespacedMutex.RUnlock()
+	return len(fake.mountNamespacedArgsForCall)
+}
+
+func (fake *FakeCake) MountNamespacedArgsForCall(i int) layercake.ID {
+	fake.mountNamespacedMutex.RLock()
+	defer fake.mountNamespacedMutex.RUnlock()
+	return fake.mountNamespacedArgsForCall[i].id
+}
+
+func (fake *FakeCake) MountNamespacedReturns(result1 string, result2 error) {
+	fake.MountNamespacedStub = nil
+	fake.mountNamespacedReturns = struct {
 		result1 string
 		result2 error
 	}{result1, result2}

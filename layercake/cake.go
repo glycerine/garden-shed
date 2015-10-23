@@ -16,6 +16,7 @@ type Cake interface {
 	Register(img *image.Image, layer archive.ArchiveReader) error
 	Get(id ID) (*image.Image, error)
 	Remove(id ID) error
-	Path(id ID) (string, error)
+	Mount(id ID) (string, error)
+	MountNamespaced(id ID) (string, error)
 	IsLeaf(id ID) (bool, error)
 }
