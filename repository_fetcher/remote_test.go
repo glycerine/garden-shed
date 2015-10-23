@@ -51,8 +51,8 @@ var _ = Describe("Fetching from a Remote repo", func() {
 				Layers: []distclient.Layer{
 					{
 						BlobSum:        "abc-def",
-						StrongID:       "abc-id",
-						ParentStrongID: "abc-parent-id",
+						StrongID:       "sha256:abc-id",
+						ParentStrongID: "sha256:abc-parent-id",
 						Image: image.Image{
 							Config: &runconfig.Config{
 								Env:     []string{"a", "b"},
@@ -60,10 +60,13 @@ var _ = Describe("Fetching from a Remote repo", func() {
 							},
 						},
 					},
-					{BlobSum: "ghj-klm", StrongID: "ghj-id"},
+					{
+						BlobSum:  "ghj-klm",
+						StrongID: "sha256:ghj-id",
+					},
 					{
 						BlobSum:  "klm-nop",
-						StrongID: "klm-id",
+						StrongID: "sha256:klm-id",
 						Image: image.Image{
 							Config: &runconfig.Config{
 								Env:     []string{"d", "e", "f"},
@@ -112,7 +115,7 @@ var _ = Describe("Fetching from a Remote repo", func() {
 	})
 
 	Context("when the URL has a host", func() {
-		It("dials that host over https", func() {
+		FIt("dials that host over https", func() {
 			_, err := remote.Fetch(parseURL("docker://some-host/some/repo#some-tag"), 1234)
 			Expect(err).NotTo(HaveOccurred())
 

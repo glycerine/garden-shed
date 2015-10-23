@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/docker/distribution/digest"
 	"github.com/docker/docker/image"
 
 	"github.com/cloudfoundry-incubator/garden-shed/distclient"
@@ -61,14 +62,14 @@ func (r *Remote) Fetch(u *url.URL, diskQuota int64) (*Image, error) {
 
 		defer verifiedBlob.Close()
 
-		err = r.Cake.Register(&image.Image{ID: layer.StrongID.String(), Parent: layer.ParentStrongID.String()}, verifiedBlob)
+		err = r.Cake.Register(&image.Image{ID: hex(layer.StrongID), Parent: hex(layer.ParentStrongID)}, verifiedBlob)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	return &Image{
-		ImageID: manifest.Layers[len(manifest.Layers)-1].StrongID.String(),
+		ImageID: hex(manifest.Layers[len(manifest.Layers)-1].StrongID),
 		Env:     env,
 		Volumes: vols,
 	}, nil
@@ -128,4 +129,12 @@ func keys(m map[string]struct{}) (r []string) {
 		r = append(r, k)
 	}
 	return
+}
+
+func hex(d digest.Digest) string {
+	if d == "" {
+		return ""
+	}
+
+	return d.Hex()
 }
