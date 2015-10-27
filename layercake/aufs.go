@@ -1,19 +1,34 @@
 package layercake
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 
 	"fmt"
 
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
+const (
+	metadataDirName    string = "garden-info"
+	parentChildDirName string = "parent-child"
+	childParentDirName string = "child-parent"
+)
+
 type AufsCake struct {
 	Cake
-	Runner command_runner.CommandRunner
+	Runner    command_runner.CommandRunner
+	GraphRoot string
+
+	relations map[ID]ID
 }
 
 func (a *AufsCake) Create(childID, parentID ID) error {
+	if a.relations == nil {
+		a.relations = make(map[ID]ID)
+	}
+
 	if _, ok := childID.(NamespacedLayerID); !ok {
 		return a.Cake.Create(childID, parentID)
 	}
@@ -41,6 +56,67 @@ func (a *AufsCake) Create(childID, parentID ID) error {
 	if err := a.Runner.Run(exec.Command("sh", "-c", copyCmd)); err != nil {
 		return err
 	}
+
+	parentChildDir := filepath.Join(a.GraphRoot, metadataDirName, parentChildDirName)
+	childParentDir := filepath.Join(a.GraphRoot, metadataDirName, childParentDirName)
+
+	if err = a.writeInfo(parentChildDir, parentID, childID); err != nil {
+		return err
+	}
+
+	if err = a.writeInfo(childParentDir, childID, parentID); err != nil {
+		return err
+	}
+
+	a.relations[parentID] = childID
+	return nil
+}
+
+func (a *AufsCake) IsLeaf(id ID) (bool, error) {
+	if a.relations == nil {
+		a.relations = make(map[ID]ID)
+	}
+
+	isDockerLeaf, _ := a.Cake.IsLeaf(id)
+	if !isDockerLeaf {
+		return false, nil
+	}
+
+	isParent, err := a.isParentOfNamespacedChild(
+		filepath.Join(a.GraphRoot, metadataDirName, parentChildDirName),
+		id,
+	)
+
+	if err != nil {
+		return false, err
+	}
+
+	return !isParent, nil
+}
+
+func (a *AufsCake) isParentOfNamespacedChild(path string, id ID) (bool, error) {
+	if _, err := os.Stat(filepath.Join(path, id.GraphID())); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+func (a *AufsCake) writeInfo(path string, file ID, content ID) error {
+	if err := os.MkdirAll(path, 0755); err != nil {
+		return err
+	}
+
+	// TODO: Write a test that handles the error case
+	handle, _ := os.OpenFile(
+		filepath.Join(path, file.GraphID()),
+		os.O_CREATE|os.O_RDWR|os.O_APPEND,
+		0755)
+	defer handle.Close()
+
+	fmt.Fprintln(handle, content.GraphID())
 
 	return nil
 }
