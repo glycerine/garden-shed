@@ -251,11 +251,9 @@ var _ = Describe("Aufs", func() {
 			})
 
 			Describe("Parent-child relationship", func() {
-				JustBeforeEach(func() {
-					Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
-				})
-
 				It("should have created the garden-info metadata directories", func() {
+					Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
+
 					Expect(filepath.Join(graphRootDirectory, "garden-info")).To(BeADirectory())
 					Expect(filepath.Join(graphRootDirectory, "garden-info", "parent-child")).To(BeADirectory())
 					Expect(filepath.Join(graphRootDirectory, "garden-info", "child-parent")).To(BeADirectory())
@@ -271,7 +269,16 @@ var _ = Describe("Aufs", func() {
 					})
 				})
 
+				Context("when parent id is not valid file name", func() {
+					It("should return the error", func() {
+						parentID.GraphIDReturns("\x00")
+						Expect(aufsCake.Create(namespacedChildID, parentID)).ToNot(Succeed())
+					})
+				})
+
 				It("keeps parent-child relationship information", func() {
+					Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
+
 					parentChildInfo := filepath.Join(graphRootDirectory, "garden-info", "parent-child", parentID.GraphID())
 					Expect(parentChildInfo).To(BeAnExistingFile())
 
@@ -281,6 +288,8 @@ var _ = Describe("Aufs", func() {
 				})
 
 				It("keeps child-parent relationship information", func() {
+					Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
+
 					childParentInfo := filepath.Join(graphRootDirectory, "garden-info", "child-parent", namespacedChildID.GraphID())
 					Expect(childParentInfo).To(BeAnExistingFile())
 
@@ -296,6 +305,8 @@ var _ = Describe("Aufs", func() {
 					})
 
 					It("should still work", func() {
+						Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
+
 						Expect(filepath.Join(graphRootDirectory, "garden-info")).To(BeADirectory())
 						Expect(filepath.Join(graphRootDirectory, "garden-info", "parent-child")).To(BeADirectory())
 						Expect(filepath.Join(graphRootDirectory, "garden-info", "child-parent")).To(BeADirectory())
@@ -304,6 +315,7 @@ var _ = Describe("Aufs", func() {
 
 				Context("when there are two namespaced children to one parent", func() {
 					It("keeps metadata on both of them", func() {
+						Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
 						Expect(aufsCake.Create(otherNamespacedChildID, parentID)).To(Succeed())
 
 						parentChildInfo := filepath.Join(graphRootDirectory, "garden-info", "parent-child", parentID.GraphID())
@@ -357,6 +369,15 @@ var _ = Describe("Aufs", func() {
 	})
 
 	Describe("IsLeaf", func() {
+		Context("when the docker underlying cake fails", func() {
+			It("should return the error", func() {
+				cake.IsLeafReturns(false, testError)
+
+				_, err := aufsCake.IsLeaf(childID)
+				Expect(err).To(Equal(testError))
+			})
+		})
+
 		Context("when layer id is not valid file name", func() {
 			It("should return the error", func() {
 				childID.GraphIDReturns("\x00")

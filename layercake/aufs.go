@@ -20,15 +20,9 @@ type AufsCake struct {
 	Cake
 	Runner    command_runner.CommandRunner
 	GraphRoot string
-
-	relations map[ID]ID
 }
 
 func (a *AufsCake) Create(childID, parentID ID) error {
-	if a.relations == nil {
-		a.relations = make(map[ID]ID)
-	}
-
 	if _, ok := childID.(NamespacedLayerID); !ok {
 		return a.Cake.Create(childID, parentID)
 	}
@@ -68,17 +62,13 @@ func (a *AufsCake) Create(childID, parentID ID) error {
 		return err
 	}
 
-	a.relations[parentID] = childID
 	return nil
 }
 
 func (a *AufsCake) IsLeaf(id ID) (bool, error) {
-	if a.relations == nil {
-		a.relations = make(map[ID]ID)
-	}
-
-	isDockerLeaf, _ := a.Cake.IsLeaf(id)
-	if !isDockerLeaf {
+	if isDockerLeaf, err := a.Cake.IsLeaf(id); err != nil {
+		return false, err
+	} else if !isDockerLeaf {
 		return false, nil
 	}
 
@@ -109,11 +99,13 @@ func (a *AufsCake) writeInfo(path string, file ID, content ID) error {
 		return err
 	}
 
-	// TODO: Write a test that handles the error case
-	handle, _ := os.OpenFile(
+	handle, err := os.OpenFile(
 		filepath.Join(path, file.GraphID()),
 		os.O_CREATE|os.O_RDWR|os.O_APPEND,
 		0755)
+	if err != nil {
+		return err
+	}
 	defer handle.Close()
 
 	fmt.Fprintln(handle, content.GraphID())
