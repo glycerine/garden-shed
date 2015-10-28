@@ -483,12 +483,101 @@ var _ = Describe("Aufs", func() {
 	})
 
 	Describe("Remove", func() {
-		BeforeEach(func() {
-			cake.RemoveReturns(testError)
+		Context("when the image ID is not namespaced", func() {
+			BeforeEach(func() {
+				cake.RemoveReturns(testError)
+			})
+
+			It("should delegate to the cake", func() {
+				Expect(aufsCake.Remove(childID)).To(Equal(testError))
+			})
 		})
 
-		It("should delegate to the cake", func() {
-			Expect(aufsCake.Remove(childID)).To(Equal(testError))
+		Context("when the image ID is namespaced", func() {
+			var (
+				parentDir               string
+				namespacedChildDir      string
+				otherNamespacedChildDir string
+			)
+
+			BeforeEach(func() {
+				var err error
+				parentDir, err = ioutil.TempDir("", "parent-layer")
+				Expect(err).NotTo(HaveOccurred())
+
+				namespacedChildDir, err = ioutil.TempDir("", "namespaced-child-layer")
+				Expect(err).NotTo(HaveOccurred())
+
+				otherNamespacedChildDir, err = ioutil.TempDir("", "other-namespaced-child-layer")
+				Expect(err).NotTo(HaveOccurred())
+
+				cake.PathStub = func(id layercake.ID) (string, error) {
+					if id == parentID {
+						return parentDir, nil
+					}
+
+					if id == namespacedChildID {
+						return namespacedChildDir, nil
+					}
+
+					if id == otherNamespacedChildID {
+						return otherNamespacedChildDir, nil
+					}
+
+					return "", testError
+				}
+			})
+
+			JustBeforeEach(func() {
+				Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
+
+				namespacedChildID = layercake.DockerImageID(namespacedChildID.GraphID())
+				otherNamespacedChildID = layercake.DockerImageID(otherNamespacedChildID.GraphID())
+			})
+
+			It("removes the child-parent relationship directory", func() {
+				Expect(aufsCake.Remove(namespacedChildID)).To(Succeed())
+
+				childParentInfo := filepath.Join(graphRootDirectory, "garden-info", "child-parent", namespacedChildID.GraphID())
+				Expect(childParentInfo).NotTo(BeAnExistingFile())
+			})
+
+			Context("when it has sibling namespaced layer", func() {
+				JustBeforeEach(func() {
+					Expect(aufsCake.Create(otherNamespacedChildID, parentID)).To(Succeed())
+				})
+
+				It("removes the corresponding info in parent-child relationship file", func() {
+					Expect(aufsCake.Remove(namespacedChildID)).To(Succeed())
+
+					parentChildInfo := filepath.Join(graphRootDirectory, "garden-info", "parent-child", parentID.GraphID())
+					Expect(parentChildInfo).To(BeAnExistingFile())
+
+					parentChildData, err := ioutil.ReadFile(parentChildInfo)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(string(parentChildData)).To(Equal(otherNamespacedChildID.GraphID() + "\n"))
+				})
+			})
+
+			Context("when it does not have sibilings", func() {
+				It("removes the parent-child relationship file", func() {
+					Expect(aufsCake.Remove(namespacedChildID)).To(Succeed())
+
+					parentChildInfo := filepath.Join(graphRootDirectory, "garden-info", "parent-child", parentID.GraphID())
+					Expect(parentChildInfo).NotTo(BeAnExistingFile())
+				})
+			})
+
+			Context("when cake remove fails", func() {
+				It("should not remove the child-parent relationship file", func() {
+					cake.RemoveReturns(testError)
+					Expect(aufsCake.Remove(namespacedChildID)).To(Equal(testError))
+
+					childParentInfo := filepath.Join(graphRootDirectory, "garden-info", "child-parent", namespacedChildID.GraphID())
+					Expect(childParentInfo).To(BeAnExistingFile())
+				})
+			})
+
 		})
 	})
 
@@ -540,6 +629,7 @@ var _ = Describe("Aufs", func() {
 			})
 
 			Context("and has a non-namespaced sibling", func() {
+				// TODO: Do we care about that?
 			})
 
 			Context("and has no siblings", func() {
@@ -587,18 +677,6 @@ var _ = Describe("Aufs", func() {
 				})
 			})
 		})
-
-		// Context("when underlying cake fails", func() {
-		// 	BeforeEach(func() {
-		// 		cake.IsLeafReturns(true, testError)
-		// 	})
-
-		// 	It("returns the error", func() {
-		// 		isLeaf, err := aufsCake.IsLeaf(childID)
-		// 		Expect(isLeaf).To(BeFalse())
-		// 		Expect(err).To(Equal(testError))
-		// 	})
-		// })
 
 		Context("when the child ID is not namespaced", func() {
 			BeforeEach(func() {

@@ -93,21 +93,50 @@ func (a *AufsCake) Get(id ID) (*image.Image, error) {
 	}
 
 	if img.Parent == "" {
-		parentData, err := ioutil.ReadFile(filepath.Join(a.childParentDir(), id.GraphID()))
+		parentData, err := a.readInfo(a.childParentDir(), id)
 		if err != nil {
-			if os.IsNotExist(err) {
-				return img, nil
-			}
 			return nil, err
 		}
 
-		img.Parent = strings.TrimSpace(string(parentData))
+		img.Parent = strings.TrimSpace(parentData)
 	}
 	return img, nil
 }
 
 func (a *AufsCake) Remove(id ID) error {
-	return a.Cake.Remove(id)
+	if err := a.Cake.Remove(id); err != nil {
+		return err
+	}
+
+	// TODO: test the error case
+	// we might remove the hasInfo call and rely on the error returned
+	// by readInfo
+	hasChildParentRelationship, _ := a.hasInfo(a.childParentDir(), id)
+	if !hasChildParentRelationship {
+		return nil
+	}
+
+	// get the parent from the file and delete the parent
+	parentData, _ := a.readInfo(a.childParentDir(), id)
+	parentID := strings.TrimSpace(string(parentData))
+	os.Remove(filepath.Join(a.childParentDir(), id.GraphID()))
+
+	childData, _ := a.readInfo(a.parentChildDir(), DockerImageID(parentID))
+	// TODO: remove only if the  childID does not have any siblings
+	os.Remove(filepath.Join(a.parentChildDir(), parentID))
+
+	return nil
+}
+
+func (a *AufsCake) readInfo(path string, id ID) (string, error) {
+	parentData, err := ioutil.ReadFile(filepath.Join(a.childParentDir(), id.GraphID()))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return string(parentData), nil
 }
 
 func (a *AufsCake) hasInfo(path string, id ID) (bool, error) {
