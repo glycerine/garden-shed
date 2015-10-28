@@ -30,6 +30,12 @@ func (a *AufsCake) Create(childID, parentID ID) error {
 		return a.Cake.Create(childID, parentID)
 	}
 
+	if isAlreadyNamespaced, err := a.hasInfo(a.childParentDir(), childID); err != nil {
+		return err
+	} else if isAlreadyNamespaced {
+		return fmt.Errorf("%s already exists", childID.GraphID())
+	}
+
 	if err := a.Cake.Create(childID, DockerImageID("")); err != nil {
 		return err
 	}
@@ -72,7 +78,7 @@ func (a *AufsCake) IsLeaf(id ID) (bool, error) {
 		return false, nil
 	}
 
-	isParent, err := a.isParentOfNamespacedChild(id)
+	isParent, err := a.hasInfo(a.parentChildDir(), id)
 	if err != nil {
 		return false, err
 	}
@@ -100,8 +106,11 @@ func (a *AufsCake) Get(id ID) (*image.Image, error) {
 	return img, nil
 }
 
-func (a *AufsCake) isParentOfNamespacedChild(id ID) (bool, error) {
-	path := a.parentChildDir()
+func (a *AufsCake) Remove(id ID) error {
+	return a.Cake.Remove(id)
+}
+
+func (a *AufsCake) hasInfo(path string, id ID) (bool, error) {
 	if _, err := os.Stat(filepath.Join(path, id.GraphID())); err != nil {
 		if os.IsNotExist(err) {
 			return false, nil

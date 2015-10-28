@@ -2,6 +2,7 @@ package layercake_test
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os/exec"
 	"path/filepath"
@@ -259,6 +260,31 @@ var _ = Describe("Aufs", func() {
 					Expect(filepath.Join(graphRootDirectory, "garden-info", "child-parent")).To(BeADirectory())
 				})
 
+				Context("when the namespaced layer is duplicated", func() {
+					JustBeforeEach(func() {
+						Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
+						Expect(aufsCake.Create(namespacedChildID, parentID)).To(MatchError(fmt.Sprintf("%s already exists", namespacedChildID.GraphID())))
+					})
+
+					It("does not add duplicated records in child-parent file", func() {
+						childParentInfo := filepath.Join(graphRootDirectory, "garden-info", "child-parent", namespacedChildID.GraphID())
+						Expect(aufsCake.Create(namespacedChildID, parentID)).To(HaveOccurred())
+
+						childParentInfoData, err := ioutil.ReadFile(childParentInfo)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(string(childParentInfoData)).To(Equal(parentID.GraphID() + "\n"))
+					})
+
+					It("does not duplicate the namespaced child id in parent-child file", func() {
+						parentChildInfo := filepath.Join(graphRootDirectory, "garden-info", "parent-child", parentID.GraphID())
+						Expect(parentChildInfo).To(BeAnExistingFile())
+
+						parentChildInfoData, err := ioutil.ReadFile(parentChildInfo)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(string(parentChildInfoData)).To(Equal(namespacedChildID.GraphID() + "\n"))
+					})
+				})
+
 				Context("when creating the garden-info metadata directories fails", func() {
 					JustBeforeEach(func() {
 						aufsCake.GraphRoot = "\x00"
@@ -266,13 +292,6 @@ var _ = Describe("Aufs", func() {
 
 					It("should return a helpful error message", func() {
 						Expect(aufsCake.Create(namespacedChildID, parentID)).NotTo(Succeed())
-					})
-				})
-
-				Context("when parent id is not valid file name", func() {
-					It("should return the error", func() {
-						parentID.GraphIDReturns("\x00")
-						Expect(aufsCake.Create(namespacedChildID, parentID)).ToNot(Succeed())
 					})
 				})
 
