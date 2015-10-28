@@ -1,84 +1,128 @@
 package aufs_test
 
 import (
-	"fmt"
-	"io/ioutil"
-	"os"
-	"os/exec"
+	"errors"
 	"path/filepath"
 
 	"github.com/cloudfoundry-incubator/garden-shed/docker_drivers/aufs"
-	"github.com/docker/docker/daemon/graphdriver"
-
+	"github.com/cloudfoundry-incubator/garden-shed/docker_drivers/aufs/fakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/gbytes"
-	"github.com/onsi/gomega/gexec"
 )
-
-type QuotaedDriver interface {
-	GetQuotaed(id, mountlabel string) (string, error)
-}
 
 var _ = Describe("Aufs", func() {
 	var (
-		driver    *aufs.Driver
-		graphRoot string
-		id        string
+		fakeGraphDriver        *fakes.FakeGraphDriver
+		fakeQuotaLayerProvider *fakes.FakeQuotaLayerProvider
+
+		driver *aufs.Driver
+
+		rootPath string
 	)
 
 	BeforeEach(func() {
-		var err error
+		fakeGraphDriver = new(fakes.FakeGraphDriver)
+		fakeQuotaLayerProvider = new(fakes.FakeQuotaLayerProvider)
 
-		graphRoot, err = ioutil.TempDir("", "aufsGraphRoot")
-		Expect(err).NotTo(HaveOccurred())
-
-		ps, err := gexec.Start(
-			exec.Command("mount", "-t", "tmpfs", "tmpfs", graphRoot),
-			GinkgoWriter, GinkgoWriter)
-		Expect(err).NotTo(HaveOccurred())
-		Eventually(ps).Should(gexec.Exit(0))
-
-		var graphDriver graphdriver.Driver
-		graphDriver, err = aufs.Init(filepath.Join(graphRoot, "aufs"), []string{})
-		Expect(err).NotTo(HaveOccurred())
-		driver = graphDriver.(*aufs.Driver)
-		Expect(err).NotTo(HaveOccurred())
-
-		id = "my_banana_id"
-		err = driver.Create(id, "")
-		Expect(err).NotTo(HaveOccurred())
+		rootPath = "/path/to/my/banana/graph"
+		driver = &aufs.Driver{fakeGraphDriver, fakeQuotaLayerProvider, rootPath}
 	})
 
-	AfterEach(func() {
-		Expect(driver.Cleanup()).To(Succeed())
+	Describe("GetQuotaed", func() {
+		It("should call the quota layer provider", func() {
+			id := "banana-id"
+			quota := int64(10 * 1024 * 1024)
 
-		ps, err := gexec.Start(
-			exec.Command("umount", graphRoot), GinkgoWriter, GinkgoWriter,
-		)
-		Expect(err).NotTo(HaveOccurred())
-		Eventually(ps).Should(gexec.Exit(0))
+			_, err := driver.GetQuotaed(id, "", quota)
+			Expect(err).NotTo(HaveOccurred())
 
-		Expect(os.RemoveAll(graphRoot)).To(Succeed())
+			Expect(fakeQuotaLayerProvider.ProvideCallCount()).To(Equal(1))
+			destinationPath, actualQuota := fakeQuotaLayerProvider.ProvideArgsForCall(0)
+			Expect(actualQuota).To(Equal(quota))
+			Expect(destinationPath).To(Equal(filepath.Join(rootPath, "aufs", "diff", id)))
+		})
+
+		Context("when the quota layer provider fails", func() {
+			BeforeEach(func() {
+				fakeQuotaLayerProvider.ProvideReturns(errors.New("My banana went bad"))
+			})
+
+			It("should return an error", func() {
+				_, err := driver.GetQuotaed("banana-id", "", 10*1024*1024)
+				Expect(err).To(MatchError(ContainSubstring("My banana went bad")))
+			})
+
+			It("should not mount the layer", func() {
+				driver.GetQuotaed("banana-id", "", 10*1024*1024)
+				Expect(fakeGraphDriver.GetCallCount()).To(Equal(0))
+			})
+		})
+
+		It("should call the GraphDriver's Get method", func() {
+			id := "mango-id"
+			mountLabel := "wild mangos: handle with care"
+			quota := int64(12 * 1024 * 1024)
+
+			_, err := driver.GetQuotaed(id, mountLabel, quota)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(fakeGraphDriver.GetCallCount()).To(Equal(1))
+			gottenID, gottenMountLabel := fakeGraphDriver.GetArgsForCall(0)
+			Expect(gottenID).To(Equal(id))
+			Expect(gottenMountLabel).To(Equal(mountLabel))
+		})
+
+		It("should return the path gotten from the GraphDriver", func() {
+			mountPath := "/path/to/mounted/banana"
+
+			fakeGraphDriver.GetReturns(mountPath, nil)
+
+			path, err := driver.GetQuotaed("test-banana-id", "", 10*1024*1024)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(path).To(Equal(mountPath))
+		})
+
+		Context("when GraphDriver fails to mount the layer", func() {
+			It("should return an error", func() {
+				fakeGraphDriver.GetReturns("", errors.New("Another banana error"))
+
+				_, err := driver.GetQuotaed("banana-id", "", 10*1024*1024)
+				Expect(err).To(MatchError(ContainSubstring("Another banana error")))
+			})
+		})
 	})
 
-	It("can get a quotaed layer", func() {
-		_, err := driver.GetQuotaed(id, "my_label")
-		Expect(err).NotTo(HaveOccurred())
-	})
+	Describe("RemoveQuotaed", func() {
+		It("should call the GraphDriver's Remove method", func() {
+			id := "herring-id"
 
-	It("gives me a layer I can write to", func() {
-		path, err := driver.GetQuotaed(id, "my_other_label")
-		ps, err := gexec.Start(
-			exec.Command("touch", fmt.Sprintf("%s/my_test_file", path)),
-			GinkgoWriter, GinkgoWriter)
-		Expect(err).ToNot(HaveOccurred())
-		Eventually(ps).Should(gexec.Exit(0))
+			Expect(driver.RemoveQuotaed(id)).To(Succeed())
+			Expect(fakeGraphDriver.RemoveCallCount()).To(Equal(1))
+			Expect(fakeGraphDriver.RemoveArgsForCall(0)).To(Equal(id))
+		})
 
-		ps, err = gexec.Start(
-			exec.Command("ls", path),
-			GinkgoWriter, GinkgoWriter)
-		Expect(err).ToNot(HaveOccurred())
-		Eventually(ps).Should(gbytes.Say("my_test_file"))
+		Context("when the GraphDriver fails to remove the layer", func() {
+			It("should return an error", func() {
+				fakeGraphDriver.RemoveReturns(errors.New("herring smell"))
+
+				Expect(driver.RemoveQuotaed("an-id")).To(MatchError(ContainSubstring("herring smell")))
+			})
+		})
+
+		It("should call the quota layer provider", func() {
+			id := "trout-id"
+
+			Expect(driver.RemoveQuotaed(id)).To(Succeed())
+			Expect(fakeQuotaLayerProvider.DestroyCallCount()).To(Equal(1))
+			Expect(fakeQuotaLayerProvider.DestroyArgsForCall(0)).To(Equal(filepath.Join(rootPath, "aufs", "diff", id)))
+		})
+
+		Context("when the quota layer provider fails to destroy the layer", func() {
+			It("should return an error", func() {
+				fakeQuotaLayerProvider.DestroyReturns(errors.New("rotten trout"))
+
+				Expect(driver.RemoveQuotaed("an-id")).To(MatchError(ContainSubstring("rotten trout")))
+			})
+		})
 	})
 })

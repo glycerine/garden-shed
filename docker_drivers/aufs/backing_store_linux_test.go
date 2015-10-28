@@ -38,7 +38,7 @@ var _ = Describe("BackingStoreLinux", func() {
 
 	Describe("Create", func() {
 		It("should return a path to an existing file in the provided root", func() {
-			path, err := mgr.Create("banana_id", 0)
+			path, err := mgr.Create("banana_id", 1024*1024*20)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(filepath.Dir(path)).To(Equal(rootPath))
@@ -51,7 +51,7 @@ var _ = Describe("BackingStoreLinux", func() {
 			})
 
 			It("should return a sensible error", func() {
-				_, err := mgr.Create("banana-id", 0)
+				_, err := mgr.Create("banana-id", 1024*1024*20)
 				Expect(err).To(MatchError(ContainSubstring("creating the backing store file")))
 			})
 		})
@@ -66,21 +66,17 @@ var _ = Describe("BackingStoreLinux", func() {
 			Expect(fi.Size()).To(Equal(quota))
 		})
 
-		Context("when quota is not set", func() {
-			It("should apply a default quota of 2G", func() {
-				path, err := mgr.Create("banana-id", 0)
-				Expect(err).NotTo(HaveOccurred())
-
-				fi, err := os.Stat(path)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(fi.Size()).To(Equal(int64(2 * 1024 * 1024 * 1024)))
-			})
-		})
-
 		Context("when the quota is negative", func() {
 			It("should return an error", func() {
 				_, err := mgr.Create("banana-id", -12)
 				Expect(err).To(HaveOccurred())
+			})
+		})
+
+		Context("when the quota is zero", func() {
+			It("should return a sensible error message", func() {
+				_, err := mgr.Create("awesome", 0)
+				Expect(err).To(MatchError("cannot have zero sized quota"))
 			})
 		})
 
@@ -108,7 +104,7 @@ var _ = Describe("BackingStoreLinux", func() {
 	Describe("Delete", func() {
 		It("should delete the file associated with the provided id", func() {
 			id := "banana_id"
-			path, err := mgr.Create(id, 0)
+			path, err := mgr.Create(id, 1024*1024*20)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(mgr.Delete(id)).To(Succeed())

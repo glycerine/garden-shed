@@ -1,11 +1,15 @@
 package layercake_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
+	"syscall"
 
+	quotaedaufs "github.com/cloudfoundry-incubator/garden-shed/docker_drivers/aufs"
 	"github.com/cloudfoundry-incubator/garden-shed/layercake"
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/docker/docker/graph"
@@ -15,7 +19,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	_ "github.com/docker/docker/daemon/graphdriver/vfs"
+	_ "github.com/docker/docker/daemon/graphdriver/aufs"
 	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
 	"github.com/docker/docker/pkg/reexec"
 )
@@ -24,7 +28,7 @@ func init() {
 	reexec.Init()
 }
 
-var _ = Describe("Docker", func() {
+var _ = FDescribe("Docker", func() {
 	var (
 		root string
 		cake *layercake.Docker
@@ -32,11 +36,28 @@ var _ = Describe("Docker", func() {
 
 	BeforeEach(func() {
 		var err error
+
 		root, err = ioutil.TempDir("", "cakeroot")
 		Expect(err).NotTo(HaveOccurred())
 
+		Expect(syscall.Mount("tmpfs", root, "tmpfs", 0, "")).To(Succeed())
+
 		driver, err := graphdriver.New(root, nil)
 		Expect(err).NotTo(HaveOccurred())
+
+		backingStoreRoot, err := ioutil.TempDir("", "backingstore")
+		Expect(err).NotTo(HaveOccurred())
+
+		driver = &quotaedaufs.Driver{
+			driver,
+			&quotaedaufs.QuotaLayer{
+				&quotaedaufs.BackingStore{
+					RootPath: backingStoreRoot,
+				},
+				&quotaedaufs.Loop{},
+			},
+			root,
+		}
 
 		graph, err := graph.NewGraph(root, driver)
 		Expect(err).NotTo(HaveOccurred())
@@ -188,6 +209,46 @@ var _ = Describe("Docker", func() {
 			})
 		})
 	})
+
+	Describe("QuotaedPath", func() {
+		var id layercake.ID
+
+		BeforeEach(func() {
+			ensureLoopDevices()
+
+			id = layercake.ContainerID("aubergine-layer")
+
+			registerImageLayer(cake, &image.Image{
+				ID: id.GraphID(),
+			})
+		})
+
+		It("returns a path which exists", func() {
+			path, err := cake.QuotaedPath(id, 10*1024*1024)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(path).To(BeADirectory())
+		})
+
+		It("should allow read/write of files within the quota", func() {
+			path, err := cake.QuotaedPath(id, 10*1024*1024)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(ioutil.WriteFile(filepath.Join(path, "foo"), []byte("hi"), 0700)).To(Succeed())
+			Expect(filepath.Join(path, "foo")).To(BeAnExistingFile())
+		})
+
+		It("should prevent us from exceeding the quota", func() {
+			path, err := cake.QuotaedPath(id, 10*1024*1024)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(
+				exec.Command(
+					"dd", "if=/dev/zero", fmt.Sprintf("of=%s/a_file", path),
+					"bs=1M", "count=11",
+				).Run(),
+			).NotTo(Succeed())
+		})
+	})
 })
 
 func createContainerLayer(cake *layercake.Docker, id, parent layercake.ID) {
@@ -203,4 +264,41 @@ func registerImageLayer(cake *layercake.Docker, img *image.Image) {
 	archiver, _ := archive.Tar(tmp, archive.Uncompressed)
 
 	Expect(cake.Register(img, archiver)).To(Succeed())
+}
+
+func ensureLoopDevices() {
+	permitDeviceAccess()
+	for i := 0; i < 128; i++ {
+		// ignoring errors if it exists..
+		exec.Command("mknod", "-m", "0660", fmt.Sprintf("/dev/loop%d", i), "b", "7", fmt.Sprintf("%d", i)).Run()
+		Expect(fmt.Sprintf("/dev/loop%d", i)).To(BeAnExistingFile(), "loop device should exist or have been created")
+	}
+}
+
+func permitDeviceAccess() {
+	out, err := exec.Command("sh", "-c", `
+		devices_mount_info=$(cat /proc/self/cgroup | grep devices)
+		if [ -z "$devices_mount_info" ]; then
+			# cgroups not set up; must not be in a container
+			exit 0
+		fi
+		devices_subsytems=$(echo $devices_mount_info | cut -d: -f2)
+		devices_subdir=$(echo $devices_mount_info | cut -d: -f3)
+		if [ "$devices_subdir" = "/" ]; then
+			# we're in the root devices cgroup; must not be in a container
+			exit 0
+		fi
+		cgroup_dir=/tmp/garden-devices-cgroup
+		if [ ! -e ${cgroup_dir} ]; then
+			# mount our container's devices subsystem somewhere
+			mkdir ${cgroup_dir}
+		fi
+		if ! mountpoint -q ${cgroup_dir}; then
+			mount -t cgroup -o $devices_subsytems none ${cgroup_dir}
+		fi
+		# permit our cgroup to do everything with all devices
+		echo a > ${cgroup_dir}${devices_subdir}/devices.allow
+	`).CombinedOutput()
+
+	Expect(err).NotTo(HaveOccurred(), string(out))
 }
