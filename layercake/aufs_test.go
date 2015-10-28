@@ -344,17 +344,122 @@ var _ = Describe("Aufs", func() {
 	})
 
 	Describe("Get", func() {
-		var testImage *image.Image
+		Context("when the image ID is namespaced", func() {
+			var (
+				parentDir               string
+				namespacedChildDir      string
+				otherNamespacedChildDir string
+			)
 
-		BeforeEach(func() {
-			testImage = &image.Image{}
-			cake.GetReturns(testImage, testError)
+			JustBeforeEach(func() {
+				var err error
+				parentDir, err = ioutil.TempDir("", "parent-layer")
+				Expect(err).NotTo(HaveOccurred())
+
+				namespacedChildDir, err = ioutil.TempDir("", "namespaced-child-layer")
+				Expect(err).NotTo(HaveOccurred())
+
+				otherNamespacedChildDir, err = ioutil.TempDir("", "other-namespaced-child-layer")
+				Expect(err).NotTo(HaveOccurred())
+
+				cake.PathStub = func(id layercake.ID) (string, error) {
+					if id == parentID {
+						return parentDir, nil
+					}
+
+					if id == namespacedChildID {
+						return namespacedChildDir, nil
+					}
+
+					if id == otherNamespacedChildID {
+						return otherNamespacedChildDir, nil
+					}
+
+					return "", testError
+				}
+
+				Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
+				Expect(aufsCake.Create(otherNamespacedChildID, parentID)).To(Succeed())
+
+				namespacedChildID = layercake.DockerImageID(namespacedChildID.GraphID())
+				otherNamespacedChildID = layercake.DockerImageID(otherNamespacedChildID.GraphID())
+
+				cake.GetStub = func(id layercake.ID) (*image.Image, error) {
+					if id != parentID &&
+						id != childID &&
+						id != namespacedChildID &&
+						id != otherNamespacedChildID {
+						return nil, testError
+					}
+
+					img := &image.Image{
+						ID: id.GraphID(),
+					}
+
+					if id == childID {
+						img.Parent = parentID.GraphID()
+					}
+
+					return img, nil
+				}
+			})
+
+			Context("when the image ID is an invalid file", func() {
+				JustBeforeEach(func() {
+					cake.GetReturns(&image.Image{}, nil)
+				})
+
+				It("returns the error", func() {
+					childID.GraphIDReturns("\x00")
+
+					img, err := aufsCake.Get(childID)
+					Expect(img).To(BeNil())
+					Expect(err).To(HaveOccurred())
+				})
+			})
+
+			It("returns its parent", func() {
+				img, err := aufsCake.Get(namespacedChildID)
+				Expect(img).NotTo(BeNil())
+				Expect(err).NotTo(HaveOccurred())
+				Expect(img.Parent).To(Equal(parentID.GraphID()))
+			})
 		})
 
-		It("should delegate to the cake", func() {
-			img, err := aufsCake.Get(childID)
-			Expect(img).To(Equal(testImage))
-			Expect(err).To(Equal(testError))
+		Context("when the image ID is not namespaced", func() {
+			Context("when the underlying cake fails", func() {
+				JustBeforeEach(func() {
+					cake.GetReturns(nil, testError)
+				})
+
+				It("returns the error", func() {
+					img, err := aufsCake.Get(childID)
+					Expect(cake.GetCallCount()).To(Equal(1))
+					Expect(cake.GetArgsForCall(0)).To(Equal(childID))
+					Expect(img).To(BeNil())
+					Expect(err).To(Equal(testError))
+				})
+			})
+
+			Context("when the child-parent info does not exist", func() {
+				It("should return the image a nil parent", func() {
+					cake.GetReturns(&image.Image{}, nil)
+					img, err := aufsCake.Get(childID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(img.Parent).To(BeEmpty())
+				})
+			})
+
+			It("should delegate to the cake", func() {
+				testImage := &image.Image{Parent: "this-parent"}
+				cake.GetReturns(testImage, nil)
+
+				img, err := aufsCake.Get(childID)
+				Expect(cake.GetCallCount()).To(Equal(1))
+				Expect(cake.GetArgsForCall(0)).To(Equal(childID))
+				Expect(err).To(BeNil())
+				Expect(img).To(Equal(testImage))
+			})
 		})
 	})
 

@@ -1,13 +1,16 @@
 package layercake
 
 import (
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"fmt"
 
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/docker/docker/image"
 )
 
 const (
@@ -51,14 +54,11 @@ func (a *AufsCake) Create(childID, parentID ID) error {
 		return err
 	}
 
-	parentChildDir := filepath.Join(a.GraphRoot, metadataDirName, parentChildDirName)
-	childParentDir := filepath.Join(a.GraphRoot, metadataDirName, childParentDirName)
-
-	if err = a.writeInfo(parentChildDir, parentID, childID); err != nil {
+	if err = a.writeInfo(a.parentChildDir(), parentID, childID); err != nil {
 		return err
 	}
 
-	if err = a.writeInfo(childParentDir, childID, parentID); err != nil {
+	if err = a.writeInfo(a.childParentDir(), childID, parentID); err != nil {
 		return err
 	}
 
@@ -72,11 +72,7 @@ func (a *AufsCake) IsLeaf(id ID) (bool, error) {
 		return false, nil
 	}
 
-	isParent, err := a.isParentOfNamespacedChild(
-		filepath.Join(a.GraphRoot, metadataDirName, parentChildDirName),
-		id,
-	)
-
+	isParent, err := a.isParentOfNamespacedChild(id)
 	if err != nil {
 		return false, err
 	}
@@ -84,7 +80,28 @@ func (a *AufsCake) IsLeaf(id ID) (bool, error) {
 	return !isParent, nil
 }
 
-func (a *AufsCake) isParentOfNamespacedChild(path string, id ID) (bool, error) {
+func (a *AufsCake) Get(id ID) (*image.Image, error) {
+	img, err := a.Cake.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if img.Parent == "" {
+		parentData, err := ioutil.ReadFile(filepath.Join(a.childParentDir(), id.GraphID()))
+		if err != nil {
+			if os.IsNotExist(err) {
+				return img, nil
+			}
+			return nil, err
+		}
+
+		img.Parent = strings.TrimSpace(string(parentData))
+	}
+	return img, nil
+}
+
+func (a *AufsCake) isParentOfNamespacedChild(id ID) (bool, error) {
+	path := a.parentChildDir()
 	if _, err := os.Stat(filepath.Join(path, id.GraphID())); err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
@@ -111,4 +128,12 @@ func (a *AufsCake) writeInfo(path string, file ID, content ID) error {
 	fmt.Fprintln(handle, content.GraphID())
 
 	return nil
+}
+
+func (a *AufsCake) parentChildDir() string {
+	return filepath.Join(a.GraphRoot, metadataDirName, parentChildDirName)
+}
+
+func (a *AufsCake) childParentDir() string {
+	return filepath.Join(a.GraphRoot, metadataDirName, childParentDirName)
 }
