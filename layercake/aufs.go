@@ -108,22 +108,19 @@ func (a *AufsCake) Remove(id ID) error {
 		return err
 	}
 
-	// TODO: test the error case
-	// we might remove the hasInfo call and rely on the error returned
-	// by readInfo
-	hasChildParentRelationship, _ := a.hasInfo(a.childParentDir(), id)
-	if !hasChildParentRelationship {
-		return nil
+	parentData, err := a.readInfo(a.childParentDir(), id)
+	if err != nil {
+		return err
 	}
 
-	// get the parent from the file and delete the parent
-	parentData, _ := a.readInfo(a.childParentDir(), id)
-	parentID := strings.TrimSpace(string(parentData))
-	os.Remove(filepath.Join(a.childParentDir(), id.GraphID()))
+	parentGraphID := strings.TrimSpace(string(parentData))
+	if err := os.Remove(filepath.Join(a.childParentDir(), id.GraphID())); err != nil {
+		return fmt.Errorf("layercake: Remove failed to remove file %s", err)
+	}
 
-	childData, _ := a.readInfo(a.parentChildDir(), DockerImageID(parentID))
-	// TODO: remove only if the  childID does not have any siblings
-	os.Remove(filepath.Join(a.parentChildDir(), parentID))
+	if err := a.removeInfo(a.parentChildDir(), parentGraphID, id.GraphID()); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -137,6 +134,33 @@ func (a *AufsCake) readInfo(path string, id ID) (string, error) {
 		return "", err
 	}
 	return string(parentData), nil
+}
+
+func (a *AufsCake) removeInfo(path string, file string, content string) error {
+	filePath := filepath.Join(path, file)
+	fileData, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	graphIDs := strings.Split(string(fileData), "\n")
+	finalGraphIDs := []string{}
+	for _, ID := range graphIDs {
+		if ID != content && ID != "" {
+			finalGraphIDs = append(finalGraphIDs, ID)
+		}
+	}
+
+	if err := os.RemoveAll(filePath); err != nil {
+		return err
+	}
+
+	for _, ID := range finalGraphIDs {
+		if err = a.addInfo(path, file, ID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (a *AufsCake) hasInfo(path string, id ID) (bool, error) {

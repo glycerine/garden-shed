@@ -317,33 +317,36 @@ var _ = Describe("Aufs", func() {
 					Expect(string(childParentInfoData)).To(ContainSubstring(parentID.GraphID()))
 				})
 
-				Context("when the garden-info metadata directories already exist", func() {
-					BeforeEach(func() {
-						os.MkdirAll(filepath.Join(graphRootDirectory, "garden-info", "parent-child"), 0755)
-						os.MkdirAll(filepath.Join(graphRootDirectory, "garden-info", "child-parent"), 0755)
-					})
-
-					It("should still work", func() {
-						Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
-
-						Expect(filepath.Join(graphRootDirectory, "garden-info")).To(BeADirectory())
-						Expect(filepath.Join(graphRootDirectory, "garden-info", "parent-child")).To(BeADirectory())
-						Expect(filepath.Join(graphRootDirectory, "garden-info", "child-parent")).To(BeADirectory())
-					})
-				})
-
 				Context("when there are two namespaced children to one parent", func() {
 					It("keeps metadata on both of them", func() {
 						Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
 						Expect(aufsCake.Create(otherNamespacedChildID, parentID)).To(Succeed())
 
-						parentChildInfo := filepath.Join(graphRootDirectory, "garden-info", "parent-child", parentID.GraphID())
-						Expect(parentChildInfo).To(BeAnExistingFile())
-
-						parentChildInfoData, err := ioutil.ReadFile(parentChildInfo)
+						Expect(aufsCake.Remove(namespacedChildID)).To(Succeed())
+						isLeaf, err := aufsCake.IsLeaf(parentID)
 						Expect(err).NotTo(HaveOccurred())
-						Expect(string(parentChildInfoData)).To(ContainSubstring(namespacedChildID.GraphID()))
-						Expect(string(parentChildInfoData)).To(ContainSubstring(otherNamespacedChildID.GraphID()))
+						Expect(isLeaf).To(BeFalse())
+					})
+
+					It("keeps metadata on both of them", func() {
+						Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
+						Expect(aufsCake.Create(otherNamespacedChildID, parentID)).To(Succeed())
+
+						Expect(aufsCake.Remove(otherNamespacedChildID)).To(Succeed())
+						isLeaf, err := aufsCake.IsLeaf(parentID)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(isLeaf).To(BeFalse())
+					})
+
+					It("keeps metadata on both of them", func() {
+						Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
+						Expect(aufsCake.Create(otherNamespacedChildID, parentID)).To(Succeed())
+
+						Expect(aufsCake.Remove(otherNamespacedChildID)).To(Succeed())
+						Expect(aufsCake.Remove(namespacedChildID)).To(Succeed())
+						isLeaf, err := aufsCake.IsLeaf(parentID)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(isLeaf).To(BeTrue())
 					})
 				})
 			})
@@ -484,12 +487,16 @@ var _ = Describe("Aufs", func() {
 
 	Describe("Remove", func() {
 		Context("when the image ID is not namespaced", func() {
-			BeforeEach(func() {
+
+			It("should return the error when cake fails", func() {
 				cake.RemoveReturns(testError)
+				Expect(aufsCake.Remove(childID)).To(Equal(testError))
 			})
 
 			It("should delegate to the cake", func() {
-				Expect(aufsCake.Remove(childID)).To(Equal(testError))
+				Expect(aufsCake.Remove(childID)).NotTo(Succeed())
+				Expect(cake.RemoveCallCount()).To(Equal(1))
+				Expect(cake.RemoveArgsForCall(0)).To(Equal(childID))
 			})
 		})
 
@@ -530,40 +537,52 @@ var _ = Describe("Aufs", func() {
 
 			JustBeforeEach(func() {
 				Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
-
-				namespacedChildID = layercake.DockerImageID(namespacedChildID.GraphID())
-				otherNamespacedChildID = layercake.DockerImageID(otherNamespacedChildID.GraphID())
 			})
 
-			It("removes the child-parent relationship directory", func() {
-				Expect(aufsCake.Remove(namespacedChildID)).To(Succeed())
-
-				childParentInfo := filepath.Join(graphRootDirectory, "garden-info", "child-parent", namespacedChildID.GraphID())
-				Expect(childParentInfo).NotTo(BeAnExistingFile())
+			Context("when the base directory does not exist", func() {
+				It("should return an error ", func() {
+					Expect(os.RemoveAll(baseDirectory)).To(Succeed())
+					err := aufsCake.Remove(childID)
+					Expect(err.Error()).To(HaveSuffix("no such file or directory"))
+				})
 			})
 
-			Context("when it has sibling namespaced layer", func() {
+			Context("when it has sibling", func() {
 				JustBeforeEach(func() {
 					Expect(aufsCake.Create(otherNamespacedChildID, parentID)).To(Succeed())
 				})
 
-				It("removes the corresponding info in parent-child relationship file", func() {
-					Expect(aufsCake.Remove(namespacedChildID)).To(Succeed())
+				It("should not make the parent a leaf when removing one child", func() {
+					Expect(aufsCake.Remove(layercake.DockerImageID(namespacedChildID.GraphID()))).To(Succeed())
 
-					parentChildInfo := filepath.Join(graphRootDirectory, "garden-info", "parent-child", parentID.GraphID())
-					Expect(parentChildInfo).To(BeAnExistingFile())
-
-					parentChildData, err := ioutil.ReadFile(parentChildInfo)
+					isLeaf, err := aufsCake.IsLeaf(parentID)
 					Expect(err).NotTo(HaveOccurred())
-					Expect(string(parentChildData)).To(Equal(otherNamespacedChildID.GraphID() + "\n"))
+					Expect(isLeaf).To(BeFalse())
+				})
+
+				It("should make the parent a leaf when removing both children", func() {
+					Expect(aufsCake.Remove(layercake.DockerImageID(namespacedChildID.GraphID()))).To(Succeed())
+					Expect(aufsCake.Remove(layercake.DockerImageID(otherNamespacedChildID.GraphID()))).To(Succeed())
+
+					isLeaf, err := aufsCake.IsLeaf(parentID)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(isLeaf).To(BeTrue())
 				})
 			})
 
 			Context("when it does not have sibilings", func() {
-				It("removes the parent-child relationship file", func() {
+				It("should make the parent a leaf", func() {
 					Expect(aufsCake.Remove(namespacedChildID)).To(Succeed())
 
-					parentChildInfo := filepath.Join(graphRootDirectory, "garden-info", "parent-child", parentID.GraphID())
+					isLeaf, err := aufsCake.IsLeaf(parentID)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(isLeaf).To(BeTrue())
+				})
+
+				It("should remove the parent child relationship", func() {
+					Expect(aufsCake.Remove(namespacedChildID)).To(Succeed())
+
+					parentChildInfo := filepath.Join(baseDirectory, "garden-info", "parent-child", parentID.GraphID())
 					Expect(parentChildInfo).NotTo(BeAnExistingFile())
 				})
 			})
