@@ -103,6 +103,8 @@ var _ = Describe("Aufs", func() {
 
 				return "", nil
 			}
+
+			cake.IsLeafReturns(true, nil)
 		})
 
 		Context("when the child ID is namespaced", func() {
@@ -290,7 +292,7 @@ var _ = Describe("Aufs", func() {
 						aufsCake.GraphRoot = "\x00"
 					})
 
-					It("should return a helpful error message", func() {
+					It("should return an error", func() {
 						Expect(aufsCake.Create(namespacedChildID, parentID)).NotTo(Succeed())
 					})
 				})
@@ -517,6 +519,8 @@ var _ = Describe("Aufs", func() {
 
 				otherNamespacedChildDir, err = ioutil.TempDir("", "other-namespaced-child-layer")
 				Expect(err).NotTo(HaveOccurred())
+
+				cake.IsLeafReturns(true, nil)
 
 				cake.PathStub = func(id layercake.ID) (string, error) {
 					if id == parentID {
