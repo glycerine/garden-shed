@@ -60,11 +60,11 @@ func (a *AufsCake) Create(childID, parentID ID) error {
 		return err
 	}
 
-	if err = a.writeInfo(a.parentChildDir(), parentID, childID); err != nil {
+	if err = a.addInfo(a.parentChildDir(), parentID.GraphID(), childID.GraphID()); err != nil {
 		return err
 	}
 
-	if err = a.writeInfo(a.childParentDir(), childID, parentID); err != nil {
+	if err = a.addInfo(a.childParentDir(), childID.GraphID(), parentID.GraphID()); err != nil {
 		return err
 	}
 
@@ -173,13 +173,14 @@ func (a *AufsCake) hasInfo(path string, id ID) (bool, error) {
 	return true, nil
 }
 
-func (a *AufsCake) writeInfo(path string, file ID, content ID) error {
+func (a *AufsCake) addInfo(path string, file string, content string) error {
+
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return err
 	}
 
 	handle, err := os.OpenFile(
-		filepath.Join(path, file.GraphID()),
+		filepath.Join(path, file),
 		os.O_CREATE|os.O_RDWR|os.O_APPEND,
 		0755)
 	if err != nil {
@@ -187,7 +188,9 @@ func (a *AufsCake) writeInfo(path string, file ID, content ID) error {
 	}
 	defer handle.Close()
 
-	fmt.Fprintln(handle, content.GraphID())
+	if _, err := fmt.Fprintln(handle, content); err != nil {
+		return err
+	}
 
 	return nil
 }
