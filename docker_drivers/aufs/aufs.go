@@ -32,9 +32,9 @@ type QuotaedDriver struct {
 	Unmount         UnmountFunc
 	BackingStoreMgr BackingStoreMgr
 	LoopMounter     LoopMounter
+	Retrier         Retrier
 	RootPath        string
 	Logger          lager.Logger
-	Retrier         Retrier
 }
 
 func (a *QuotaedDriver) GetQuotaed(id, mountlabel string, quota int64) (string, error) {
