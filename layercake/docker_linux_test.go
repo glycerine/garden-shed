@@ -8,13 +8,16 @@ import (
 	"path"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	quotaedaufs "github.com/cloudfoundry-incubator/garden-shed/docker_drivers/aufs"
 	"github.com/cloudfoundry-incubator/garden-shed/layercake"
+	"github.com/cloudfoundry-incubator/garden-shed/pkg/retrier"
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
+	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
@@ -233,15 +236,24 @@ var _ = Describe("Docker", func() {
 				driver, err = graphdriver.GetDriver("aufs", root, nil)
 				Expect(err).NotTo(HaveOccurred())
 
+				graphRetrier := &retrier.Retrier{
+					Timeout:         100 * time.Second,
+					PollingInterval: 500 * time.Millisecond,
+					Clock:           clock.NewClock(),
+				}
+
 				driver = &quotaedaufs.QuotaedDriver{
 					GraphDriver: driver,
+					Unmount:     quotaedaufs.Unmount,
 					BackingStoreMgr: &quotaedaufs.BackingStore{
 						RootPath: backingStoreRoot,
 						Logger:   lagertest.NewTestLogger("test"),
 					},
 					LoopMounter: &quotaedaufs.Loop{
-						Logger: lagertest.NewTestLogger("test"),
+						Retrier: graphRetrier,
+						Logger:  lagertest.NewTestLogger("test"),
 					},
+					Retrier:  graphRetrier,
 					RootPath: root,
 					Logger:   lagertest.NewTestLogger("test"),
 				}
