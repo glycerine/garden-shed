@@ -17,7 +17,7 @@ var _ = Describe("Retrier", func() {
 		ret             *retrier.Retrier
 		clk             clock.Clock
 		callbackCount   int
-		callback        retrier.Callback
+		callback        func() error
 		timeout         time.Duration
 		pollingInterval time.Duration
 	)
