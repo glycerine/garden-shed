@@ -115,6 +115,9 @@ func (a *AufsCake) Remove(id ID) error {
 
 	parentGraphID := strings.TrimSpace(string(parentData))
 	if err := os.Remove(filepath.Join(a.childParentDir(), id.GraphID())); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return fmt.Errorf("layercake: Remove failed to remove file %s", err)
 	}
 
@@ -140,6 +143,9 @@ func (a *AufsCake) removeInfo(path string, file string, content string) error {
 	filePath := filepath.Join(path, file)
 	fileData, err := ioutil.ReadFile(filePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return err
 	}
 

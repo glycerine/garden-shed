@@ -20,7 +20,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Aufs", func() {
+var _ = FDescribe("Aufs", func() {
 	var (
 		aufsCake               *layercake.AufsCake
 		cake                   *fake_cake.FakeCake
@@ -494,14 +494,13 @@ var _ = Describe("Aufs", func() {
 
 	Describe("Remove", func() {
 		Context("when the image ID is not namespaced", func() {
-
 			It("should return the error when cake fails", func() {
 				cake.RemoveReturns(testError)
 				Expect(aufsCake.Remove(childID)).To(Equal(testError))
 			})
 
 			It("should delegate to the cake", func() {
-				Expect(aufsCake.Remove(childID)).NotTo(Succeed())
+				Expect(aufsCake.Remove(childID)).To(Succeed())
 				Expect(cake.RemoveCallCount()).To(Equal(1))
 				Expect(cake.RemoveArgsForCall(0)).To(Equal(childID))
 			})
@@ -549,10 +548,9 @@ var _ = Describe("Aufs", func() {
 			})
 
 			Context("when the base directory does not exist", func() {
-				It("should return an error ", func() {
+				It("should silently succeed", func() {
 					Expect(os.RemoveAll(baseDirectory)).To(Succeed())
-					err := aufsCake.Remove(childID)
-					Expect(err.Error()).To(HaveSuffix("no such file or directory"))
+					Expect(aufsCake.Remove(childID)).To(Succeed())
 				})
 			})
 
