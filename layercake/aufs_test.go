@@ -290,6 +290,7 @@ var _ = Describe("Aufs", func() {
 				})
 
 				It("keeps parent-child relationship information", func() {
+					cake.IsLeafReturns(true, nil)
 					Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
 
 					isLeaf, err := aufsCake.IsLeaf(parentID)
@@ -298,18 +299,33 @@ var _ = Describe("Aufs", func() {
 				})
 
 				It("keeps child-parent relationship information", func() {
+					cake.GetStub = func(id layercake.ID) (*image.Image, error) {
+						if id != parentID &&
+							id != childID &&
+							id != namespacedChildID &&
+							id != otherNamespacedChildID {
+							return nil, testError
+						}
+
+						img := &image.Image{
+							ID: id.GraphID(),
+						}
+
+						if id == childID {
+							img.Parent = parentID.GraphID()
+						}
+
+						return img, nil
+					}
+
 					Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
-
-					childParentInfo := filepath.Join(baseDirectory, "garden-info", "child-parent", namespacedChildID.GraphID())
-					Expect(childParentInfo).To(BeAnExistingFile())
-
-					childParentInfoData, err := ioutil.ReadFile(childParentInfo)
+					img, err := aufsCake.Get(namespacedChildID)
 					Expect(err).NotTo(HaveOccurred())
-					Expect(string(childParentInfoData)).To(ContainSubstring(parentID.GraphID()))
+					Expect(img.Parent).To(Equal(parentID.GraphID()))
 				})
 
 				Context("when there are two namespaced children to one parent", func() {
-					It("keeps metadata on both of them", func() {
+					It("removing the first child doesn't destroy all the metadata", func() {
 						Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
 						Expect(aufsCake.Create(otherNamespacedChildID, parentID)).To(Succeed())
 
@@ -319,7 +335,7 @@ var _ = Describe("Aufs", func() {
 						Expect(isLeaf).To(BeFalse())
 					})
 
-					It("keeps metadata on both of them", func() {
+					It("removing the second child doesn't destroy all the metadata", func() {
 						Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
 						Expect(aufsCake.Create(otherNamespacedChildID, parentID)).To(Succeed())
 
@@ -545,8 +561,22 @@ var _ = Describe("Aufs", func() {
 					Expect(aufsCake.Create(otherNamespacedChildID, parentID)).To(Succeed())
 				})
 
-				It("should not make the parent a leaf when removing one child", func() {
-					Expect(aufsCake.Remove(layercake.DockerImageID(namespacedChildID.GraphID()))).To(Succeed())
+				It("should not make the parent a leaf when removing the first child", func() {
+					Expect(aufsCake.Remove(namespacedChildID)).To(Succeed())
+					isLeaf, err := aufsCake.IsLeaf(parentID)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(isLeaf).To(BeFalse())
+				})
+
+				It("should not make the parent a leaf when removing the second child", func() {
+					Expect(aufsCake.Remove(otherNamespacedChildID)).To(Succeed())
+					isLeaf, err := aufsCake.IsLeaf(parentID)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(isLeaf).To(BeFalse())
+				})
+
+				It("should not make the parent a leaf when removing the second child", func() {
+					Expect(aufsCake.Remove(layercake.DockerImageID(otherNamespacedChildID.GraphID()))).To(Succeed())
 
 					isLeaf, err := aufsCake.IsLeaf(parentID)
 					Expect(err).NotTo(HaveOccurred())
@@ -578,6 +608,13 @@ var _ = Describe("Aufs", func() {
 					parentChildInfo := filepath.Join(baseDirectory, "garden-info", "parent-child", parentID.GraphID())
 					Expect(parentChildInfo).NotTo(BeAnExistingFile())
 				})
+
+				It("should remove the child parent relationship", func() {
+					Expect(aufsCake.Remove(namespacedChildID)).To(Succeed())
+
+					childParentInfo := filepath.Join(baseDirectory, "garden-info", "child-parent", namespacedChildID.GraphID())
+					Expect(childParentInfo).NotTo(BeAnExistingFile())
+				})
 			})
 
 			Context("when cake remove fails", func() {
@@ -587,6 +624,14 @@ var _ = Describe("Aufs", func() {
 
 					childParentInfo := filepath.Join(baseDirectory, "garden-info", "child-parent", namespacedChildID.GraphID())
 					Expect(childParentInfo).To(BeAnExistingFile())
+				})
+
+				It("should not remove the parent-child relationship file", func() {
+					cake.RemoveReturns(testError)
+					Expect(aufsCake.Remove(namespacedChildID)).To(Equal(testError))
+
+					parentChildInfo := filepath.Join(baseDirectory, "garden-info", "parent-child", parentID.GraphID())
+					Expect(parentChildInfo).To(BeAnExistingFile())
 				})
 			})
 
@@ -640,59 +685,62 @@ var _ = Describe("Aufs", func() {
 				}
 			})
 
-			Context("and has a non-namespaced sibling", func() {
-				// TODO: Do we care about that?
-			})
-
-			Context("and has no siblings", func() {
-				JustBeforeEach(func() {
-					cake.IsLeafStub = func(id layercake.ID) (bool, error) {
-						if id == parentID {
-							// as far as docker is concerned, this is a leaf, since docker
-							// knows nothing about the namespaced child.
-							return true, nil
-						}
-
-						if id == namespacedChildID {
-							// as far as docker knows, the namespaced child has no relatives of
-							// any kind
-							return true, nil
-						}
-
-						// docker knows nothing about any other layers
-						return false, testError
+			JustBeforeEach(func() {
+				cake.IsLeafStub = func(id layercake.ID) (bool, error) {
+					if id == parentID {
+						// as far as docker is concerned, this is a leaf, since docker
+						// knows nothing about the namespaced child.
+						return true, nil
 					}
 
-					Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
-				})
+					if id == namespacedChildID {
+						// as far as docker knows, the namespaced child has no relatives of
+						// any kind
+						return true, nil
+					}
 
-				It("should be a leaf", func() {
-					isLeaf, err := aufsCake.IsLeaf(namespacedChildID)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(isLeaf).To(BeTrue())
-				})
+					// docker knows nothing about any other layers
+					return false, testError
+				}
 
-				It("has a non-leaf parent", func() {
-					isLeaf, err := aufsCake.IsLeaf(parentID)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(isLeaf).To(BeFalse())
-				})
+				Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
+			})
 
-				It("should persist the relationship", func() {
-					otherAufsCake := &layercake.AufsCake{
-						Cake:      cake,
-						Runner:    runner,
-						GraphRoot: baseDirectory}
-					isLeaf, err := otherAufsCake.IsLeaf(parentID)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(isLeaf).To(BeFalse())
-				})
+			It("should be a leaf", func() {
+				isLeaf, err := aufsCake.IsLeaf(namespacedChildID)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(isLeaf).To(BeTrue())
+			})
+
+			It("has a non-leaf parent", func() {
+				isLeaf, err := aufsCake.IsLeaf(parentID)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(isLeaf).To(BeFalse())
+			})
+
+			It("should persist the relationship", func() {
+				otherAufsCake := &layercake.AufsCake{
+					Cake:      cake,
+					Runner:    runner,
+					GraphRoot: baseDirectory}
+				isLeaf, err := otherAufsCake.IsLeaf(parentID)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(isLeaf).To(BeFalse())
 			})
 		})
 
 		Context("when the child ID is not namespaced", func() {
 			BeforeEach(func() {
-				cake.IsLeafReturns(true, nil)
+				cake.IsLeafStub = func(id layercake.ID) (bool, error) {
+					if id == childID {
+						return true, nil
+					}
+					if id == parentID {
+						return false, nil
+					}
+
+					return false, errors.New("Unsupported ID")
+				}
 			})
 
 			It("should delegate to the cake", func() {
@@ -702,7 +750,14 @@ var _ = Describe("Aufs", func() {
 				Expect(cake.IsLeafCallCount()).To(Equal(1))
 				Expect(cake.IsLeafArgsForCall(0)).To(Equal(childID))
 			})
-		})
 
+			It("should also delegate to the cake for the parent", func() {
+				isLeaf, err := aufsCake.IsLeaf(parentID)
+				Expect(isLeaf).To(BeFalse())
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cake.IsLeafCallCount()).To(Equal(1))
+				Expect(cake.IsLeafArgsForCall(0)).To(Equal(parentID))
+			})
+		})
 	})
 })
