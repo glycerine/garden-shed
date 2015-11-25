@@ -32,6 +32,8 @@ func (a *AufsCake) Create(childID, parentID ID) error {
 		return err
 	}
 
+	defer a.Cake.Unmount(parentID)
+
 	destinationPath, err := a.Cake.Path(childID)
 	if err != nil {
 		return err
