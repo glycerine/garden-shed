@@ -12,7 +12,7 @@ type FakeTranslator struct {
 	CacheKeyStub        func() string
 	cacheKeyMutex       sync.RWMutex
 	cacheKeyArgsForCall []struct{}
-	cacheKeyReturns     struct {
+	cacheKeyReturns struct {
 		result1 string
 	}
 	TranslateStub        func(path string, info os.FileInfo, err error) error

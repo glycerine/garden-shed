@@ -11,7 +11,7 @@ type FakeID struct {
 	GraphIDStub        func() string
 	graphIDMutex       sync.RWMutex
 	graphIDArgsForCall []struct{}
-	graphIDReturns     struct {
+	graphIDReturns struct {
 		result1 string
 	}
 }

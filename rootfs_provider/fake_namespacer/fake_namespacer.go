@@ -11,7 +11,7 @@ type FakeNamespacer struct {
 	CacheKeyStub        func() string
 	cacheKeyMutex       sync.RWMutex
 	cacheKeyArgsForCall []struct{}
-	cacheKeyReturns     struct {
+	cacheKeyReturns struct {
 		result1 string
 	}
 	NamespaceStub        func(rootfsPath string) error

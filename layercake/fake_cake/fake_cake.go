@@ -13,7 +13,7 @@ type FakeCake struct {
 	DriverNameStub        func() string
 	driverNameMutex       sync.RWMutex
 	driverNameArgsForCall []struct{}
-	driverNameReturns     struct {
+	driverNameReturns struct {
 		result1 string
 	}
 	CreateStub        func(containerID, imageID layercake.ID) error
