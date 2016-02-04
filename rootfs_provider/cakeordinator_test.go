@@ -119,16 +119,54 @@ var _ = Describe("The Cake Co-ordinator", func() {
 
 	Describe("Destroy", func() {
 		It("delegates removals", func() {
-			fakeCake.RemoveReturns(errors.New("returned-error"))
+			fakeCake.GetAllLeavesReturns([]string{"1", "2", "3"}, nil)
 
 			err := cakeOrdinator.Destroy(logger, "something")
-			Expect(fakeCake.RemoveCallCount()).To(Equal(1))
+			Expect(fakeCake.RemoveCallCount()).To(Equal(3))
+
 			id := fakeCake.RemoveArgsForCall(0)
-			Expect(id).To(Equal(layercake.ContainerID("something")))
-			Expect(err).To(MatchError("returned-error"))
+			Expect(id).To(Equal(layercake.ContainerID("1")))
+			id = fakeCake.RemoveArgsForCall(1)
+			Expect(id).To(Equal(layercake.ContainerID("2")))
+			id = fakeCake.RemoveArgsForCall(2)
+			Expect(id).To(Equal(layercake.ContainerID("3")))
+
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		Context("when the cake fails to fetch all leaves", func() {
+			It("returns the error", func() {
+				fakeCake.GetAllLeavesReturns([]string{}, errors.New("spiderman-error"))
+
+				err := cakeOrdinator.Destroy(logger, "something")
+				Expect(err).To(MatchError("spiderman-error"))
+			})
+		})
+
+		Context("when cleanup fails for a single leaf", func() {
+			It("returns the error", func() {
+				fakeCake.GetAllLeavesReturns([]string{"yo"}, nil)
+				fakeCake.RemoveReturns(errors.New("single-error"))
+
+				multiErr := cakeOrdinator.Destroy(logger, "whatever")
+				Expect(multiErr.Error()).To(ContainSubstring("single-error"))
+			})
+		})
+
+		Context("when cleanup fails for multiple leaves", func() {
+			It("returns the errors", func() {
+				fakeCake.GetAllLeavesReturns([]string{"yo", "mate"}, nil)
+				fakeCake.RemoveReturns(errors.New("multi-error"))
+
+				err := cakeOrdinator.Destroy(logger, "whatever")
+				multiErr := (multierr.Error).err
+				Expect(multiErr.Errors[0]).To(MatchError("multi-error"))
+			})
 		})
 
 		It("prevents concurrent garbage collection and creation", func() {
+			fakeCake.GetAllLeavesReturns([]string{"1"}, nil)
+
 			removeStarted := make(chan struct{})
 			removeReturns := make(chan struct{})
 			fakeCake.RemoveStub = func(id layercake.ID) error {

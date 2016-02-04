@@ -21,4 +21,5 @@ type Cake interface {
 	Path(id ID) (string, error)
 	QuotaedPath(id ID, quota int64) (string, error)
 	IsLeaf(id ID) (bool, error)
+	GetAllLeaves() ([]string, error)
 }

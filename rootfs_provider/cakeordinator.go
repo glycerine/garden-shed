@@ -6,6 +6,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-shed/layercake"
 	"github.com/cloudfoundry-incubator/garden-shed/repository_fetcher"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pivotal-golang/lager"
 )
 
@@ -66,5 +67,19 @@ func (c *CakeOrdinator) Retain(logger lager.Logger, id layercake.ID) {
 func (c *CakeOrdinator) Destroy(_ lager.Logger, id string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.cake.Remove(layercake.ContainerID(id))
+	leaves, err := c.cake.GetAllLeaves()
+	if err != nil {
+		return err
+	}
+
+	var multiErr error
+
+	for _, leafID := range leaves {
+		err := c.cake.Remove(layercake.ContainerID(leafID))
+		if err != nil {
+			multiErr = multierror.Append(multiErr, err)
+		}
+	}
+
+	return multiErr
 }
