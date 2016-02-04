@@ -67,10 +67,7 @@ func (c *CakeOrdinator) Retain(logger lager.Logger, id layercake.ID) {
 func (c *CakeOrdinator) Destroy(_ lager.Logger, id string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	leaves, err := c.cake.GetAllLeaves()
-	if err != nil {
-		return err
-	}
+	leaves := c.cake.GetAllLeaves()
 
 	var multiErr error
 

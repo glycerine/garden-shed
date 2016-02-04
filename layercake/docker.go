@@ -74,6 +74,17 @@ func (d *Docker) IsLeaf(id ID) (bool, error) {
 	return ok, nil
 }
 
+func (d *Docker) GetAllLeaves() []string {
+	heads := d.Graph.Heads()
+	var result []string
+
+	for head := range heads {
+		result = append(result, head)
+	}
+
+	return result
+}
+
 type ContainerID string
 type DockerImageID string
 

@@ -155,12 +155,20 @@ var _ = Describe("The Cake Co-ordinator", func() {
 
 		Context("when cleanup fails for multiple leaves", func() {
 			It("returns the errors", func() {
-				fakeCake.GetAllLeavesReturns([]string{"yo", "mate"}, nil)
-				fakeCake.RemoveReturns(errors.New("multi-error"))
+				fakeCake.GetAllLeavesReturns([]string{"first", "second"}, nil)
+
+				fakeCake.RemoveStub = func(id layercake.ID) error {
+					if id == layercake.ContainerID("first") {
+						return errors.New("error-first")
+					} else if id == layercake.ContainerID("second") {
+						return errors.New("error-second")
+					}
+					return nil
+				}
 
 				err := cakeOrdinator.Destroy(logger, "whatever")
-				multiErr := (multierr.Error).err
-				Expect(multiErr.Errors[0]).To(MatchError("multi-error"))
+				Expect(err.Error()).To(ContainSubstring("error-first"))
+				Expect(err.Error()).To(ContainSubstring("error-second"))
 			})
 		})
 

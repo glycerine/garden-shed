@@ -208,6 +208,21 @@ var _ = Describe("Docker", func() {
 		})
 	})
 
+	Describe("GetAllLeaves", func() {
+		BeforeEach(func() {
+			createContainerLayer(cake, layercake.ContainerID("def"), layercake.DockerImageID(""))
+			createContainerLayer(cake, layercake.ContainerID("abc"), layercake.ContainerID("def"))
+			createContainerLayer(cake, layercake.ContainerID("child2"), layercake.ContainerID("def"))
+		})
+
+		It("should return all the leaves", func() {
+			leaves := cake.GetAllLeaves()
+			Expect(leaves).To(HaveLen(2))
+			Expect(leaves).To(ContainElement(layercake.ContainerID("abc").GraphID()))
+			Expect(leaves).To(ContainElement(layercake.ContainerID("child2").GraphID()))
+		})
+	})
+
 	Describe("QuotaedPath", func() {
 		Context("when not using aufs quotaed driver", func() {
 			It("should return an error", func() {
