@@ -51,6 +51,10 @@ var _ = Describe("Aufs", func() {
 		otherNamespacedChildID = layercake.NamespacedID(parentID, "test2")
 	})
 
+	AfterEach(func() {
+		Expect(os.RemoveAll(baseDirectory)).To(Succeed())
+	})
+
 	JustBeforeEach(func() {
 		aufsCake = &layercake.AufsCake{
 			Cake:      cake,
@@ -105,6 +109,12 @@ var _ = Describe("Aufs", func() {
 			}
 
 			cake.IsLeafReturns(true, nil)
+		})
+
+		AfterEach(func() {
+			Expect(os.RemoveAll(parentDir)).To(Succeed())
+			Expect(os.RemoveAll(namespacedChildDir)).To(Succeed())
+			Expect(os.RemoveAll(otherNamespacedChildDir)).To(Succeed())
 		})
 
 		Context("when the child ID is namespaced", func() {
@@ -505,6 +515,11 @@ var _ = Describe("Aufs", func() {
 				}
 			})
 
+			AfterEach(func() {
+				Expect(os.RemoveAll(parentDir)).To(Succeed())
+				Expect(os.RemoveAll(namespacedChildDir)).To(Succeed())
+			})
+
 			Context("when the image ID is an invalid file", func() {
 				JustBeforeEach(func() {
 					cake.GetReturns(&image.Image{}, nil)
@@ -755,6 +770,11 @@ var _ = Describe("Aufs", func() {
 				}
 			})
 
+			AfterEach(func() {
+				Expect(os.RemoveAll(parentDir)).To(Succeed())
+				Expect(os.RemoveAll(namespacedChildDir)).To(Succeed())
+			})
+
 			JustBeforeEach(func() {
 				cake.IsLeafStub = func(id layercake.ID) (bool, error) {
 					if id == parentID {
@@ -831,13 +851,17 @@ var _ = Describe("Aufs", func() {
 		})
 	})
 
-	FDescribe("GetAllLeaves", func() {
+	Describe("GetAllLeaves", func() {
 		Context("when there are no cloned layers", func() {
-			var leaves []string
+			var (
+				leaves []string
+				err    error
+			)
 
 			JustBeforeEach(func() {
-				cake.GetAllLeavesReturns([]string{"1", "2"})
-				leaves = aufsCake.GetAllLeaves()
+				cake.GetAllLeavesReturns([]string{"1", "2"}, nil)
+				leaves, err = aufsCake.GetAllLeaves()
+				Expect(err).NotTo(HaveOccurred())
 			})
 
 			It("should delegate to the cake", func() {
@@ -859,8 +883,6 @@ var _ = Describe("Aufs", func() {
 			)
 
 			BeforeEach(func() {
-				// - graph-id
-				// - test
 				var err error
 				parentDir, err = ioutil.TempDir("", "parent-layer")
 				Expect(err).NotTo(HaveOccurred())
@@ -880,29 +902,44 @@ var _ = Describe("Aufs", func() {
 				}
 			})
 
+			AfterEach(func() {
+				Expect(os.RemoveAll(parentDir)).To(Succeed())
+				Expect(os.RemoveAll(namespacedChildDir)).To(Succeed())
+			})
+
 			JustBeforeEach(func() {
-				cake.IsLeafStub = func(id layercake.ID) (bool, error) {
-					if id == namespacedChildID {
-						return true, nil
-					}
-					if id == parentID {
-						return false, nil
-					}
-
-					return false, errors.New("Unsupported ID")
-				}
-
-				cake.GetAllLeavesReturns([]string{"graph-id", "test"})
+				cake.GetAllLeavesReturns([]string{"graph-id", "test"}, nil)
 				// create cloned layer
 				Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
 			})
 
 			It("should get all leaves", func() {
-				leaves := aufsCake.GetAllLeaves()
+				leaves, err := aufsCake.GetAllLeaves()
+				Expect(err).NotTo(HaveOccurred())
 
 				Expect(leaves).To(HaveLen(1))
 				Expect(leaves[0]).To(Equal("test"))
 			})
+
+			Context("when retrieving all leaves from cake fails", func() {
+				It("returns the error", func() {
+					cake.GetAllLeavesReturns([]string{}, errors.New("an-error"))
+
+					_, err := aufsCake.GetAllLeaves()
+					Expect(err).To(MatchError("an-error"))
+				})
+			})
+
+			Context("when layer id is not valid file name", func() {
+				It("should return the error", func() {
+					cake.GetAllLeavesReturns([]string{"\x00"}, nil)
+					cake.IsLeafReturns(true, nil)
+
+					_, err := aufsCake.GetAllLeaves()
+					Expect(err).To(HaveOccurred())
+				})
+			})
 		})
 	})
+
 })

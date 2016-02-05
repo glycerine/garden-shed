@@ -87,11 +87,12 @@ type FakeCake struct {
 		result1 bool
 		result2 error
 	}
-	GetAllLeavesStub        func() []string
+	GetAllLeavesStub        func() ([]string, error)
 	getAllLeavesMutex       sync.RWMutex
 	getAllLeavesArgsForCall []struct{}
 	getAllLeavesReturns     struct {
 		result1 []string
+		result2 error
 	}
 }
 
@@ -382,14 +383,14 @@ func (fake *FakeCake) IsLeafReturns(result1 bool, result2 error) {
 	}{result1, result2}
 }
 
-func (fake *FakeCake) GetAllLeaves() []string {
+func (fake *FakeCake) GetAllLeaves() ([]string, error) {
 	fake.getAllLeavesMutex.Lock()
 	fake.getAllLeavesArgsForCall = append(fake.getAllLeavesArgsForCall, struct{}{})
 	fake.getAllLeavesMutex.Unlock()
 	if fake.GetAllLeavesStub != nil {
 		return fake.GetAllLeavesStub()
 	} else {
-		return fake.getAllLeavesReturns.result1
+		return fake.getAllLeavesReturns.result1, fake.getAllLeavesReturns.result2
 	}
 }
 
@@ -399,11 +400,12 @@ func (fake *FakeCake) GetAllLeavesCallCount() int {
 	return len(fake.getAllLeavesArgsForCall)
 }
 
-func (fake *FakeCake) GetAllLeavesReturns(result1 []string) {
+func (fake *FakeCake) GetAllLeavesReturns(result1 []string, result2 error) {
 	fake.GetAllLeavesStub = nil
 	fake.getAllLeavesReturns = struct {
 		result1 []string
-	}{result1}
+		result2 error
+	}{result1, result2}
 }
 
 var _ layercake.Cake = new(FakeCake)

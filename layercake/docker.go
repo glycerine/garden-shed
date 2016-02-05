@@ -74,7 +74,7 @@ func (d *Docker) IsLeaf(id ID) (bool, error) {
 	return ok, nil
 }
 
-func (d *Docker) GetAllLeaves() []string {
+func (d *Docker) GetAllLeaves() ([]string, error) {
 	heads := d.Graph.Heads()
 	var result []string
 
@@ -82,7 +82,7 @@ func (d *Docker) GetAllLeaves() []string {
 		result = append(result, head)
 	}
 
-	return result
+	return result, nil
 }
 
 type ContainerID string

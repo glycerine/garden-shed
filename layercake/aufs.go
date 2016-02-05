@@ -30,7 +30,7 @@ func (a *AufsCake) Create(childID, parentID ID) error {
 		return a.Cake.Create(childID, parentID)
 	}
 
-	if isAlreadyNamespaced, err := a.hasInfo(a.childParentDir(), childID); err != nil {
+	if isAlreadyNamespaced, err := a.hasInfo(a.childParentDir(), childID.GraphID()); err != nil {
 		return err
 	} else if isAlreadyNamespaced {
 		return fmt.Errorf("%s already exists", childID.GraphID())
@@ -78,9 +78,8 @@ func (a *AufsCake) IsLeaf(id ID) (bool, error) {
 	} else if !isDockerLeaf {
 		return false, nil
 	}
-	fmt.Println("It is a docker leaf")
 
-	isParent, err := a.hasInfo(a.parentChildDir(), id)
+	isParent, err := a.hasInfo(a.parentChildDir(), id.GraphID())
 	if err != nil {
 		return false, err
 	}
@@ -88,18 +87,24 @@ func (a *AufsCake) IsLeaf(id ID) (bool, error) {
 	return !isParent, nil
 }
 
-func (a *AufsCake) GetAllLeaves() []string {
+func (a *AufsCake) GetAllLeaves() ([]string, error) {
 	var leaves []string
-	dockerLeaves := a.Cake.GetAllLeaves()
-	fmt.Printf("DockerLeaves!!!!: %#v\n", dockerLeaves)
+
+	dockerLeaves, err := a.Cake.GetAllLeaves()
+	if err != nil {
+		return []string{}, err
+	}
+
 	for _, dockerLeaf := range dockerLeaves {
-		isLeaf, _ := a.IsLeaf(DockerImageID(dockerLeaf))
-		fmt.Printf("isLeaf!!!!: %t ContainerID(dockerLeaf).GraphID: %s\n", isLeaf, DockerImageID(dockerLeaf).GraphID())
-		if isLeaf {
+		isParent, err := a.hasInfo(a.parentChildDir(), dockerLeaf)
+		if err != nil {
+			return []string{}, err
+		}
+		if !isParent {
 			leaves = append(leaves, dockerLeaf)
 		}
 	}
-	return leaves
+	return leaves, nil
 }
 
 func (a *AufsCake) Get(id ID) (*image.Image, error) {
@@ -185,8 +190,8 @@ func (a *AufsCake) removeInfo(path string, file string, content string) error {
 	return nil
 }
 
-func (a *AufsCake) hasInfo(path string, id ID) (bool, error) {
-	if _, err := os.Stat(filepath.Join(path, id.GraphID())); err != nil {
+func (a *AufsCake) hasInfo(path string, graphID string) (bool, error) {
+	if _, err := os.Stat(filepath.Join(path, graphID)); err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
 		}

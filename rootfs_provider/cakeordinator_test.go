@@ -120,7 +120,7 @@ var _ = Describe("The Cake Co-ordinator", func() {
 
 	Describe("Destroy", func() {
 		It("delegates removals", func() {
-			fakeCake.GetAllLeavesReturns([]string{"1", "2", "3"})
+			fakeCake.GetAllLeavesReturns([]string{"1", "2", "3"}, nil)
 
 			err := cakeOrdinator.Destroy(logger, "something")
 			Expect(fakeCake.RemoveCallCount()).To(Equal(3))
@@ -135,9 +135,18 @@ var _ = Describe("The Cake Co-ordinator", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
+		Context("when retrieving all leaves fails", func() {
+			It("returns the error", func() {
+				fakeCake.GetAllLeavesReturns([]string{}, errors.New("some-error"))
+				err := cakeOrdinator.Destroy(logger, "something")
+
+				Expect(err).To(MatchError("some-error"))
+			})
+		})
+
 		Context("when cleanup fails for a single leaf", func() {
 			It("returns the error", func() {
-				fakeCake.GetAllLeavesReturns([]string{"yo"})
+				fakeCake.GetAllLeavesReturns([]string{"yo"}, nil)
 				fakeCake.RemoveReturns(errors.New("single-error"))
 
 				err := cakeOrdinator.Destroy(logger, "whatever")
@@ -150,7 +159,7 @@ var _ = Describe("The Cake Co-ordinator", func() {
 			var err error
 
 			BeforeEach(func() {
-				fakeCake.GetAllLeavesReturns([]string{"first", "second", "third"})
+				fakeCake.GetAllLeavesReturns([]string{"first", "second", "third"}, nil)
 
 				fakeCake.RemoveStub = func(id layercake.ID) error {
 					if id == layercake.ContainerID("first") {
@@ -178,7 +187,7 @@ var _ = Describe("The Cake Co-ordinator", func() {
 		})
 
 		It("prevents concurrent garbage collection and creation", func() {
-			fakeCake.GetAllLeavesReturns([]string{"1"})
+			fakeCake.GetAllLeavesReturns([]string{"1"}, nil)
 
 			removeStarted := make(chan struct{})
 			removeReturns := make(chan struct{})

@@ -216,7 +216,9 @@ var _ = Describe("Docker", func() {
 		})
 
 		It("should return all the leaves", func() {
-			leaves := cake.GetAllLeaves()
+			leaves, err := cake.GetAllLeaves()
+			Expect(err).NotTo(HaveOccurred())
+
 			Expect(leaves).To(HaveLen(2))
 			Expect(leaves).To(ContainElement(layercake.ContainerID("abc").GraphID()))
 			Expect(leaves).To(ContainElement(layercake.ContainerID("child2").GraphID()))
