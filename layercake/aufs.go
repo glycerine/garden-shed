@@ -78,6 +78,7 @@ func (a *AufsCake) IsLeaf(id ID) (bool, error) {
 	} else if !isDockerLeaf {
 		return false, nil
 	}
+	fmt.Println("It is a docker leaf")
 
 	isParent, err := a.hasInfo(a.parentChildDir(), id)
 	if err != nil {
@@ -85,6 +86,20 @@ func (a *AufsCake) IsLeaf(id ID) (bool, error) {
 	}
 
 	return !isParent, nil
+}
+
+func (a *AufsCake) GetAllLeaves() []string {
+	var leaves []string
+	dockerLeaves := a.Cake.GetAllLeaves()
+	fmt.Printf("DockerLeaves!!!!: %#v\n", dockerLeaves)
+	for _, dockerLeaf := range dockerLeaves {
+		isLeaf, _ := a.IsLeaf(DockerImageID(dockerLeaf))
+		fmt.Printf("isLeaf!!!!: %t ContainerID(dockerLeaf).GraphID: %s\n", isLeaf, DockerImageID(dockerLeaf).GraphID())
+		if isLeaf {
+			leaves = append(leaves, dockerLeaf)
+		}
+	}
+	return leaves
 }
 
 func (a *AufsCake) Get(id ID) (*image.Image, error) {

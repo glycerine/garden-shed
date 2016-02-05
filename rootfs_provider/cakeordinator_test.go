@@ -10,6 +10,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-shed/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-shed/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-shed/rootfs_provider/fakes"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pivotal-golang/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
@@ -119,7 +120,7 @@ var _ = Describe("The Cake Co-ordinator", func() {
 
 	Describe("Destroy", func() {
 		It("delegates removals", func() {
-			fakeCake.GetAllLeavesReturns([]string{"1", "2", "3"}, nil)
+			fakeCake.GetAllLeavesReturns([]string{"1", "2", "3"})
 
 			err := cakeOrdinator.Destroy(logger, "something")
 			Expect(fakeCake.RemoveCallCount()).To(Equal(3))
@@ -134,28 +135,22 @@ var _ = Describe("The Cake Co-ordinator", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		Context("when the cake fails to fetch all leaves", func() {
-			It("returns the error", func() {
-				fakeCake.GetAllLeavesReturns([]string{}, errors.New("spiderman-error"))
-
-				err := cakeOrdinator.Destroy(logger, "something")
-				Expect(err).To(MatchError("spiderman-error"))
-			})
-		})
-
 		Context("when cleanup fails for a single leaf", func() {
 			It("returns the error", func() {
-				fakeCake.GetAllLeavesReturns([]string{"yo"}, nil)
+				fakeCake.GetAllLeavesReturns([]string{"yo"})
 				fakeCake.RemoveReturns(errors.New("single-error"))
 
-				multiErr := cakeOrdinator.Destroy(logger, "whatever")
-				Expect(multiErr.Error()).To(ContainSubstring("single-error"))
+				err := cakeOrdinator.Destroy(logger, "whatever")
+				multiErr := err.(*multierror.Error)
+				Expect(multiErr.Errors[0]).To(MatchError("single-error"))
 			})
 		})
 
 		Context("when cleanup fails for multiple leaves", func() {
-			It("returns the errors", func() {
-				fakeCake.GetAllLeavesReturns([]string{"first", "second"}, nil)
+			var err error
+
+			BeforeEach(func() {
+				fakeCake.GetAllLeavesReturns([]string{"first", "second", "third"})
 
 				fakeCake.RemoveStub = func(id layercake.ID) error {
 					if id == layercake.ContainerID("first") {
@@ -166,14 +161,24 @@ var _ = Describe("The Cake Co-ordinator", func() {
 					return nil
 				}
 
-				err := cakeOrdinator.Destroy(logger, "whatever")
-				Expect(err.Error()).To(ContainSubstring("error-first"))
-				Expect(err.Error()).To(ContainSubstring("error-second"))
+				err = cakeOrdinator.Destroy(logger, "whatever")
+			})
+
+			It("returns all errors", func() {
+				multiErr := err.(*multierror.Error)
+
+				Expect(multiErr.Errors).To(HaveLen(2))
+				Expect(multiErr.Errors[0]).To(MatchError("error-first"))
+				Expect(multiErr.Errors[1]).To(MatchError("error-second"))
+			})
+
+			It("calls Destroy for all leaves in the graph", func() {
+				Expect(fakeCake.RemoveCallCount()).To(Equal(3))
 			})
 		})
 
 		It("prevents concurrent garbage collection and creation", func() {
-			fakeCake.GetAllLeavesReturns([]string{"1"}, nil)
+			fakeCake.GetAllLeavesReturns([]string{"1"})
 
 			removeStarted := make(chan struct{})
 			removeReturns := make(chan struct{})

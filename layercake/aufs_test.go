@@ -830,4 +830,79 @@ var _ = Describe("Aufs", func() {
 			})
 		})
 	})
+
+	FDescribe("GetAllLeaves", func() {
+		Context("when there are no cloned layers", func() {
+			var leaves []string
+
+			JustBeforeEach(func() {
+				cake.GetAllLeavesReturns([]string{"1", "2"})
+				leaves = aufsCake.GetAllLeaves()
+			})
+
+			It("should delegate to the cake", func() {
+				Expect(cake.GetAllLeavesCallCount()).To(Equal(1))
+			})
+
+			It("should get all leaves", func() {
+				Expect(leaves).To(HaveLen(2))
+				Expect(leaves[0]).To(Equal("1"))
+				Expect(leaves[1]).To(Equal("2"))
+			})
+
+		})
+
+		Context("when there is a cloned layer", func() {
+			var (
+				parentDir          string
+				namespacedChildDir string
+			)
+
+			BeforeEach(func() {
+				// - graph-id
+				// - test
+				var err error
+				parentDir, err = ioutil.TempDir("", "parent-layer")
+				Expect(err).NotTo(HaveOccurred())
+
+				namespacedChildDir, err = ioutil.TempDir("", "child-layer")
+				Expect(err).NotTo(HaveOccurred())
+
+				cake.PathStub = func(id layercake.ID) (string, error) {
+					if id == parentID {
+						return parentDir, nil
+					}
+
+					if id == namespacedChildID {
+						return namespacedChildDir, nil
+					}
+					return "", nil
+				}
+			})
+
+			JustBeforeEach(func() {
+				cake.IsLeafStub = func(id layercake.ID) (bool, error) {
+					if id == namespacedChildID {
+						return true, nil
+					}
+					if id == parentID {
+						return false, nil
+					}
+
+					return false, errors.New("Unsupported ID")
+				}
+
+				cake.GetAllLeavesReturns([]string{"graph-id", "test"})
+				// create cloned layer
+				Expect(aufsCake.Create(namespacedChildID, parentID)).To(Succeed())
+			})
+
+			It("should get all leaves", func() {
+				leaves := aufsCake.GetAllLeaves()
+
+				Expect(leaves).To(HaveLen(1))
+				Expect(leaves[0]).To(Equal("test"))
+			})
+		})
+	})
 })

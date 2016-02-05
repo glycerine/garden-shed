@@ -70,7 +70,6 @@ func (c *CakeOrdinator) Destroy(_ lager.Logger, id string) error {
 	leaves := c.cake.GetAllLeaves()
 
 	var multiErr error
-
 	for _, leafID := range leaves {
 		err := c.cake.Remove(layercake.ContainerID(leafID))
 		if err != nil {
