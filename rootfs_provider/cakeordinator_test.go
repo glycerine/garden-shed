@@ -126,11 +126,11 @@ var _ = Describe("The Cake Co-ordinator", func() {
 			Expect(fakeCake.RemoveCallCount()).To(Equal(3))
 
 			id := fakeCake.RemoveArgsForCall(0)
-			Expect(id).To(Equal(layercake.ContainerID("1")))
+			Expect(id).To(Equal(layercake.DockerImageID("1")))
 			id = fakeCake.RemoveArgsForCall(1)
-			Expect(id).To(Equal(layercake.ContainerID("2")))
+			Expect(id).To(Equal(layercake.DockerImageID("2")))
 			id = fakeCake.RemoveArgsForCall(2)
-			Expect(id).To(Equal(layercake.ContainerID("3")))
+			Expect(id).To(Equal(layercake.DockerImageID("3")))
 
 			Expect(err).NotTo(HaveOccurred())
 		})
@@ -162,9 +162,9 @@ var _ = Describe("The Cake Co-ordinator", func() {
 				fakeCake.GetAllLeavesReturns([]string{"first", "second", "third"}, nil)
 
 				fakeCake.RemoveStub = func(id layercake.ID) error {
-					if id == layercake.ContainerID("first") {
+					if id == layercake.DockerImageID("first") {
 						return errors.New("error-first")
-					} else if id == layercake.ContainerID("second") {
+					} else if id == layercake.DockerImageID("second") {
 						return errors.New("error-second")
 					}
 					return nil

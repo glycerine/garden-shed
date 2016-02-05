@@ -82,7 +82,7 @@ func (c *CakeOrdinator) Destroy(logger lager.Logger, id string) error {
 		logger.Info("removing leaf:", lager.Data{
 			"leafID": leafID,
 		})
-		err := c.cake.Remove(layercake.ContainerID(leafID))
+		err := c.cake.Remove(layercake.DockerImageID(leafID))
 		if err != nil {
 			logger.Error("failed removing", err)
 			multiErr = multierror.Append(multiErr, err)
