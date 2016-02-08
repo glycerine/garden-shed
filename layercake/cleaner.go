@@ -15,8 +15,25 @@ type OvenCleaner struct {
 
 	EnableImageCleanup bool
 
-	retainedImages   map[string]struct{}
-	retainedImagesMu sync.RWMutex
+	retainCheck Checker
+}
+
+type Checker interface {
+	Check(id ID) bool
+}
+
+type RetainChecker interface {
+	Retainer
+	Checker
+}
+
+func NewOvenCleaner(cake Cake, logger lager.Logger, enableCleanup bool, retainCheck Checker) *OvenCleaner {
+	return &OvenCleaner{
+		Cake:               cake,
+		Logger:             logger,
+		EnableImageCleanup: enableCleanup,
+		retainCheck:        retainCheck,
+	}
 }
 
 func (g *OvenCleaner) Get(id ID) (*image.Image, error) {
@@ -27,7 +44,7 @@ func (g *OvenCleaner) Remove(id ID) error {
 	log := g.Logger.Session("remove", lager.Data{"ID": id, "GRAPH_ID": id.GraphID()})
 	log.Info("start")
 
-	if g.isRetained(id) {
+	if g.retainCheck.Check(id) {
 		log.Info("layer-is-held")
 		return nil
 	}
@@ -62,7 +79,16 @@ func (g *OvenCleaner) Remove(id ID) error {
 	return nil
 }
 
-func (g *OvenCleaner) Retain(log lager.Logger, id ID) {
+type retainer struct {
+	retainedImages   map[string]struct{}
+	retainedImagesMu sync.RWMutex
+}
+
+func NewRetainer() *retainer {
+	return &retainer{}
+}
+
+func (g *retainer) Retain(log lager.Logger, id ID) {
 	g.retainedImagesMu.Lock()
 	defer g.retainedImagesMu.Unlock()
 
@@ -73,7 +99,7 @@ func (g *OvenCleaner) Retain(log lager.Logger, id ID) {
 	g.retainedImages[id.GraphID()] = struct{}{}
 }
 
-func (g *OvenCleaner) isRetained(id ID) bool {
+func (g *retainer) Check(id ID) bool {
 	g.retainedImagesMu.Lock()
 	defer g.retainedImagesMu.Unlock()
 
@@ -84,3 +110,7 @@ func (g *OvenCleaner) isRetained(id ID) bool {
 	_, ok := g.retainedImages[id.GraphID()]
 	return ok
 }
+
+type CheckFunc func(id ID) bool
+
+func (fn CheckFunc) Check(id ID) bool { return fn(id) }

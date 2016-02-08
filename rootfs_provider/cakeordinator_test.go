@@ -119,10 +119,18 @@ var _ = Describe("The Cake Co-ordinator", func() {
 	})
 
 	Describe("Destroy", func() {
+		It("delegates removal", func() {
+			Expect(cakeOrdinator.Destroy(logger, "something")).To(Succeed())
+			Expect(fakeCake.RemoveCallCount()).To(Equal(1))
+			Expect(fakeCake.RemoveArgsForCall(0)).To(Equal(layercake.ContainerID("something")))
+		})
+	})
+
+	Describe("GC", func() {
 		It("delegates removals", func() {
 			fakeCake.GetAllLeavesReturns([]string{"1", "2", "3"}, nil)
 
-			err := cakeOrdinator.Destroy(logger, "something")
+			err := cakeOrdinator.GC(logger, "something")
 			Expect(fakeCake.RemoveCallCount()).To(Equal(3))
 
 			id := fakeCake.RemoveArgsForCall(0)
@@ -138,7 +146,7 @@ var _ = Describe("The Cake Co-ordinator", func() {
 		Context("when retrieving all leaves fails", func() {
 			It("returns the error", func() {
 				fakeCake.GetAllLeavesReturns([]string{}, errors.New("some-error"))
-				err := cakeOrdinator.Destroy(logger, "something")
+				err := cakeOrdinator.GC(logger, "something")
 
 				Expect(err).To(MatchError("some-error"))
 			})
@@ -149,7 +157,7 @@ var _ = Describe("The Cake Co-ordinator", func() {
 				fakeCake.GetAllLeavesReturns([]string{"yo"}, nil)
 				fakeCake.RemoveReturns(errors.New("single-error"))
 
-				err := cakeOrdinator.Destroy(logger, "whatever")
+				err := cakeOrdinator.GC(logger, "whatever")
 				multiErr := err.(*multierror.Error)
 				Expect(multiErr.Errors[0]).To(MatchError("single-error"))
 			})
@@ -170,7 +178,7 @@ var _ = Describe("The Cake Co-ordinator", func() {
 					return nil
 				}
 
-				err = cakeOrdinator.Destroy(logger, "whatever")
+				err = cakeOrdinator.GC(logger, "whatever")
 			})
 
 			It("returns all errors", func() {
@@ -181,7 +189,7 @@ var _ = Describe("The Cake Co-ordinator", func() {
 				Expect(multiErr.Errors[1]).To(MatchError("error-second"))
 			})
 
-			It("calls Destroy for all leaves in the graph", func() {
+			It("calls Remove for all leaves in the graph", func() {
 				Expect(fakeCake.RemoveCallCount()).To(Equal(3))
 			})
 		})
@@ -197,7 +205,7 @@ var _ = Describe("The Cake Co-ordinator", func() {
 				return nil
 			}
 
-			go cakeOrdinator.Destroy(logger, "")
+			go cakeOrdinator.GC(logger, "")
 			<-removeStarted
 			go cakeOrdinator.Create(logger, "", rootfs_provider.Spec{
 				RootFS:     &url.URL{},

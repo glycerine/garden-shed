@@ -13,6 +13,7 @@ import (
 
 var _ = Describe("Oven cleaner", func() {
 	var (
+		retainer           layercake.RetainChecker
 		gc                 *layercake.OvenCleaner
 		fakeCake           *fake_cake.FakeCake
 		child2parent       map[layercake.ID]layercake.ID // child -> parent
@@ -21,6 +22,8 @@ var _ = Describe("Oven cleaner", func() {
 
 	BeforeEach(func() {
 		enableImageCleanup = true
+
+		retainer = layercake.NewRetainer()
 
 		fakeCake = new(fake_cake.FakeCake)
 		fakeCake.GetStub = func(id layercake.ID) (*image.Image, error) {
@@ -50,11 +53,12 @@ var _ = Describe("Oven cleaner", func() {
 	})
 
 	JustBeforeEach(func() {
-		gc = &layercake.OvenCleaner{
-			Cake:               fakeCake,
-			Logger:             lagertest.NewTestLogger("test"),
-			EnableImageCleanup: enableImageCleanup,
-		}
+		gc = layercake.NewOvenCleaner(
+			fakeCake,
+			lagertest.NewTestLogger("test"),
+			enableImageCleanup,
+			retainer,
+		)
 	})
 
 	Describe("Remove", func() {
@@ -71,7 +75,7 @@ var _ = Describe("Oven cleaner", func() {
 
 			Context("when the layer is retained", func() {
 				JustBeforeEach(func() {
-					gc.Retain(lagertest.NewTestLogger(""), layercake.ContainerID("child"))
+					retainer.Retain(lagertest.NewTestLogger(""), layercake.ContainerID("child"))
 				})
 
 				It("should not remove the layer", func() {

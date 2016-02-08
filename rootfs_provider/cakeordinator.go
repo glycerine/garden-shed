@@ -67,11 +67,19 @@ func (c *CakeOrdinator) Retain(logger lager.Logger, id layercake.ID) {
 func (c *CakeOrdinator) Destroy(logger lager.Logger, id string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	logger = logger.Session("ordinator-destroy", lager.Data{"id": id})
+
+	return c.cake.Remove(layercake.ContainerID(id))
+}
+
+func (c *CakeOrdinator) GC(logger lager.Logger) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	leaves, err := c.cake.GetAllLeaves()
 
-	logger = logger.Session("ordinator-destroy", lager.Data{
-		"id": id,
-	})
+	logger = logger.Session("ordinator-gc")
 
 	if err != nil {
 		return err
@@ -82,6 +90,7 @@ func (c *CakeOrdinator) Destroy(logger lager.Logger, id string) error {
 		logger.Info("removing leaf:", lager.Data{
 			"leafID": leafID,
 		})
+
 		err := c.cake.Remove(layercake.DockerImageID(leafID))
 		if err != nil {
 			logger.Error("failed removing", err)
