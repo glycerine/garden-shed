@@ -77,10 +77,10 @@ func (c *CakeOrdinator) GC(logger lager.Logger) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	leaves, err := c.cake.GetAllLeaves()
-
 	logger = logger.Session("ordinator-gc")
+	logger.Info("start")
 
+	leaves, err := c.cake.GetAllLeaves()
 	if err != nil {
 		return err
 	}
