@@ -223,7 +223,7 @@ var _ = Describe("Layer Creator", func() {
 						},
 						rootfs_provider.Spec{
 							Namespaced: true,
-							QuotaSize:  0,
+							QuotaSize:  14,
 						},
 					)
 
@@ -232,9 +232,10 @@ var _ = Describe("Layer Creator", func() {
 
 				It("namespaces it, and creates a graph entry with it as the parent", func() {
 					Expect(fakeCake.CreateCallCount()).To(Equal(2))
-					id, parent, _ := fakeCake.CreateArgsForCall(0)
+					id, parent, _, quota := fakeCake.CreateArgsForCall(0)
 					Expect(id).To(Equal(layercake.NamespacedID(layercake.DockerImageID("some-image-id"), "jam")))
 					Expect(parent).To(Equal(layercake.DockerImageID("some-image-id")))
+					Expect(quota).To(Equal(14))
 
 					id, parent, containerID := fakeCake.CreateArgsForCall(1)
 					Expect(id).To(Equal(layercake.ContainerID("some-id")))

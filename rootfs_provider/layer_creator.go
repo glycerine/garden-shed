@@ -33,7 +33,7 @@ func (provider *ContainerLayerCreator) Create(id string, parentImage *repository
 
 	if spec.Namespaced {
 		provider.mutex.Lock()
-		imageID, err = provider.namespace(imageID)
+		imageID, err = provider.namespace(imageID, spec.QuotaSize)
 		provider.mutex.Unlock()
 		if err != nil {
 			return "", nil, err
@@ -67,11 +67,11 @@ func (provider *ContainerLayerCreator) Create(id string, parentImage *repository
 	return rootPath, parentImage.Env, nil
 }
 
-func (provider *ContainerLayerCreator) namespace(imageID layercake.ID) (layercake.ID, error) {
+func (provider *ContainerLayerCreator) namespace(imageID layercake.ID, quota int64) (layercake.ID, error) {
 	namespacedImageID := layercake.NamespacedID(imageID, provider.namespacer.CacheKey())
 
 	if _, err := provider.graph.Get(namespacedImageID); err != nil {
-		if err := provider.createNamespacedLayer(namespacedImageID, imageID); err != nil {
+		if err := provider.createNamespacedLayer(namespacedImageID, imageID, quota); err != nil {
 			return nil, err
 		}
 	}
@@ -79,10 +79,10 @@ func (provider *ContainerLayerCreator) namespace(imageID layercake.ID) (layercak
 	return namespacedImageID, nil
 }
 
-func (provider *ContainerLayerCreator) createNamespacedLayer(id, parentId layercake.ID) error {
+func (provider *ContainerLayerCreator) createNamespacedLayer(id, parentId layercake.ID, quota int64) error {
 	var err error
 	var path string
-	if path, err = provider.createLayer(id, parentId); err != nil {
+	if path, err = provider.createLayer(id, parentId, quota); err != nil {
 		return err
 	}
 
@@ -96,12 +96,12 @@ func (provider *ContainerLayerCreator) unmountTranslationLayer(id layercake.ID) 
 	}
 }
 
-func (provider *ContainerLayerCreator) createLayer(id, parentId layercake.ID) (string, error) {
+func (provider *ContainerLayerCreator) createLayer(id, parentId layercake.ID, quota int64) (string, error) {
 	errs := func(err error) (string, error) {
 		return "", err
 	}
 
-	if err := provider.graph.Create(id, parentId, ""); err != nil {
+	if err := provider.graph.Create(id, parentId, "", quota); err != nil {
 		return errs(err)
 	}
 
