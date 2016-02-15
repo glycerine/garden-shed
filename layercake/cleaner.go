@@ -7,8 +7,8 @@ import (
 )
 
 type OvenCleaner struct {
-	EnableImageCleanup bool
-	retainCheck        Checker
+	GraphCleanupThreshold int
+	retainCheck           Checker
 }
 
 type Checker interface {
@@ -20,10 +20,10 @@ type RetainChecker interface {
 	Checker
 }
 
-func NewOvenCleaner(retainCheck Checker, enableCleanup bool) *OvenCleaner {
+func NewOvenCleaner(retainCheck Checker, graphCleanupThreshold int) *OvenCleaner {
 	return &OvenCleaner{
-		EnableImageCleanup: enableCleanup,
-		retainCheck:        retainCheck,
+		GraphCleanupThreshold: graphCleanupThreshold,
+		retainCheck:           retainCheck,
 	}
 }
 
@@ -31,7 +31,8 @@ func (g *OvenCleaner) GC(log lager.Logger, cake Cake) error {
 	log = log.Session("gc")
 	log.Info("start")
 
-	if !g.EnableImageCleanup {
+	println("GRAPHCLEANUPTHRESHOLD ", g.GraphCleanupThreshold)
+	if g.GraphCleanupThreshold < 0 {
 		log.Debug("stop-image-cleanup-disabled")
 		return nil
 	}
