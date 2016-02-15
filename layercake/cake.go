@@ -13,7 +13,7 @@ type ID interface {
 //go:generate counterfeiter -o fake_cake/fake_cake.go . Cake
 type Cake interface {
 	DriverName() string
-	Create(layerID, parentID ID, containerID string) error
+	Create(layerID, parentID ID, containerID string, quota int64) error
 	Register(img *image.Image, layer archive.ArchiveReader) error
 	Get(id ID) (*image.Image, error)
 	Unmount(id ID) error

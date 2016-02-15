@@ -16,12 +16,13 @@ type FakeCake struct {
 	driverNameReturns     struct {
 		result1 string
 	}
-	CreateStub        func(layerID, parentID layercake.ID, containerID string) error
+	CreateStub        func(layerID, parentID layercake.ID, containerID string, quota int64) error
 	createMutex       sync.RWMutex
 	createArgsForCall []struct {
 		layerID     layercake.ID
 		parentID    layercake.ID
 		containerID string
+		quota       int64
 	}
 	createReturns struct {
 		result1 error
@@ -121,16 +122,17 @@ func (fake *FakeCake) DriverNameReturns(result1 string) {
 	}{result1}
 }
 
-func (fake *FakeCake) Create(layerID layercake.ID, parentID layercake.ID, containerID string) error {
+func (fake *FakeCake) Create(layerID layercake.ID, parentID layercake.ID, containerID string, quota int64) error {
 	fake.createMutex.Lock()
 	fake.createArgsForCall = append(fake.createArgsForCall, struct {
 		layerID     layercake.ID
 		parentID    layercake.ID
 		containerID string
-	}{layerID, parentID, containerID})
+		quota       int64
+	}{layerID, parentID, containerID, quota})
 	fake.createMutex.Unlock()
 	if fake.CreateStub != nil {
-		return fake.CreateStub(layerID, parentID, containerID)
+		return fake.CreateStub(layerID, parentID, containerID, quota)
 	} else {
 		return fake.createReturns.result1
 	}
@@ -142,10 +144,10 @@ func (fake *FakeCake) CreateCallCount() int {
 	return len(fake.createArgsForCall)
 }
 
-func (fake *FakeCake) CreateArgsForCall(i int) (layercake.ID, layercake.ID, string) {
+func (fake *FakeCake) CreateArgsForCall(i int) (layercake.ID, layercake.ID, string, int64) {
 	fake.createMutex.RLock()
 	defer fake.createMutex.RUnlock()
-	return fake.createArgsForCall[i].layerID, fake.createArgsForCall[i].parentID, fake.createArgsForCall[i].containerID
+	return fake.createArgsForCall[i].layerID, fake.createArgsForCall[i].parentID, fake.createArgsForCall[i].containerID, fake.createArgsForCall[i].quota
 }
 
 func (fake *FakeCake) CreateReturns(result1 error) {

@@ -120,29 +120,31 @@ var _ = Describe("Aufs", func() {
 		Context("when the image ID is not namespaced", func() {
 			It("should delegate to the cake", func() {
 				cake.CreateReturns(testError)
-				Expect(aufsCake.Create(childID, parentID, "potato")).To(Equal(testError))
+				Expect(aufsCake.Create(childID, parentID, "potato", 14)).To(Equal(testError))
 				Expect(cake.CreateCallCount()).To(Equal(1))
-				cid, iid, containerID := cake.CreateArgsForCall(0)
+				cid, iid, containerID, quota := cake.CreateArgsForCall(0)
 				Expect(cid).To(Equal(childID))
 				Expect(iid).To(Equal(parentID))
 				Expect(containerID).To(Equal("potato"))
+				Expect(quota).To(Equal(14))
 			})
 		})
 
 		Context("when the image ID is namespaced", func() {
 			It("should delegate to the cake but with an empty parent", func() {
 				cake.CreateReturns(testError)
-				Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Equal(testError))
+				Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Equal(testError))
 				Expect(cake.CreateCallCount()).To(Equal(1))
-				cid, iid, _ := cake.CreateArgsForCall(0)
+				cid, iid, _, quota := cake.CreateArgsForCall(0)
 				Expect(cid).To(Equal(namespacedChildID))
 				Expect(iid.GraphID()).To(BeEmpty())
+				Expect(quota).To(Equal(14))
 			})
 
 			Context("when mounting child fails", func() {
 				It("should return the error", func() {
 					cake.GetReturns(nil, testError)
-					Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Equal(testError))
+					Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Equal(testError))
 				})
 			})
 
@@ -152,11 +154,11 @@ var _ = Describe("Aufs", func() {
 				})
 
 				It("should return the error", func() {
-					Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Equal(testError))
+					Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Equal(testError))
 				})
 
 				It("should not unmount the parent", func() {
-					Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Equal(testError))
+					Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Equal(testError))
 					Expect(cake.UnmountCallCount()).To(Equal(0))
 				})
 			})
@@ -173,7 +175,7 @@ var _ = Describe("Aufs", func() {
 
 				It("should unmount the parentID", func() {
 					aufsCake.Runner = succeedingRunner
-					Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
+					Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
 					Expect(cake.UnmountCallCount()).To(Equal(1))
 					Expect(cake.UnmountArgsForCall(0)).To(Equal(parentID))
 				})
@@ -185,7 +187,7 @@ var _ = Describe("Aufs", func() {
 						return nil
 					}
 					aufsCake.Runner = succeedingRunner
-					Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
+					Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
 
 				})
 
@@ -202,7 +204,7 @@ var _ = Describe("Aufs", func() {
 						runCallCount += 1
 						return nil
 					})
-					Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
+					Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
 				})
 			})
 
@@ -222,11 +224,11 @@ var _ = Describe("Aufs", func() {
 				})
 
 				It("should return the error", func() {
-					Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Equal(testError))
+					Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Equal(testError))
 				})
 
 				It("should unmount the parentID", func() {
-					Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Equal(testError))
+					Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Equal(testError))
 					Expect(cake.UnmountCallCount()).To(Equal(1))
 					Expect(cake.UnmountArgsForCall(0)).To(Equal(parentID))
 				})
@@ -239,12 +241,13 @@ var _ = Describe("Aufs", func() {
 					})
 
 					It("should copy the parent layer to the child layer", func() {
-						Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
+						Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
 
 						Expect(cake.CreateCallCount()).To(Equal(1))
-						layerID, layerParentID, _ := cake.CreateArgsForCall(0)
+						layerID, layerParentID, _, quota := cake.CreateArgsForCall(0)
 						Expect(layerID).To(Equal(namespacedChildID))
 						Expect(layerParentID).To(Equal(layercake.DockerImageID("")))
+						Expect(quota).To(Equal(14))
 
 						Expect(cake.GetCallCount()).To(Equal(1))
 						Expect(cake.GetArgsForCall(0)).To(Equal(namespacedChildID))
@@ -268,12 +271,13 @@ var _ = Describe("Aufs", func() {
 					})
 
 					It("should copy the parent layer to the child layer", func() {
-						Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
+						Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
 
 						Expect(cake.CreateCallCount()).To(Equal(1))
-						layerID, layerParentID, _ := cake.CreateArgsForCall(0)
+						layerID, layerParentID, _, quota := cake.CreateArgsForCall(0)
 						Expect(layerID).To(Equal(namespacedChildID))
 						Expect(layerParentID).To(Equal(layercake.DockerImageID("")))
+						Expect(quota).To(Equal(14))
 
 						Expect(cake.GetCallCount()).To(Equal(1))
 						Expect(cake.GetArgsForCall(0)).To(Equal(namespacedChildID))
@@ -293,12 +297,13 @@ var _ = Describe("Aufs", func() {
 					})
 
 					It("should copy the parent layer to the child layer", func() {
-						Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
+						Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
 
 						Expect(cake.CreateCallCount()).To(Equal(1))
-						layerID, layerParentID, _ := cake.CreateArgsForCall(0)
+						layerID, layerParentID, _, quota := cake.CreateArgsForCall(0)
 						Expect(layerID).To(Equal(namespacedChildID))
 						Expect(layerParentID).To(Equal(layercake.DockerImageID("")))
+						Expect(quota).To(Equal(14))
 
 						Expect(cake.GetCallCount()).To(Equal(1))
 						Expect(cake.GetArgsForCall(0)).To(Equal(namespacedChildID))
@@ -325,7 +330,7 @@ var _ = Describe("Aufs", func() {
 					})
 
 					JustBeforeEach(func() {
-						actualError = aufsCake.Create(namespacedChildID, parentID, "")
+						actualError = aufsCake.Create(namespacedChildID, parentID, "", 14)
 					})
 
 					It("returns the error", func() {
@@ -338,7 +343,7 @@ var _ = Describe("Aufs", func() {
 					})
 
 					It("should not create the garden-info metadata directories", func() {
-						Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Equal(testError))
+						Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Equal(testError))
 						Expect(filepath.Join(baseDirectory, "garden-info")).NotTo(BeADirectory())
 						Expect(filepath.Join(baseDirectory, "garden-info", "parent-child")).NotTo(BeADirectory())
 						Expect(filepath.Join(baseDirectory, "garden-info", "child-parent")).NotTo(BeADirectory())
@@ -349,13 +354,13 @@ var _ = Describe("Aufs", func() {
 			Describe("Parent-child relationship", func() {
 				Context("when the namespaced layer is duplicated", func() {
 					JustBeforeEach(func() {
-						Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
-						Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(MatchError(fmt.Sprintf("%s already exists", namespacedChildID.GraphID())))
+						Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
+						Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(MatchError(fmt.Sprintf("%s already exists", namespacedChildID.GraphID())))
 					})
 
 					It("does not add duplicated records in child-parent file", func() {
 						childParentInfo := filepath.Join(baseDirectory, "garden-info", "child-parent", namespacedChildID.GraphID())
-						Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(HaveOccurred())
+						Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(HaveOccurred())
 
 						childParentInfoData, err := ioutil.ReadFile(childParentInfo)
 						Expect(err).NotTo(HaveOccurred())
@@ -378,13 +383,13 @@ var _ = Describe("Aufs", func() {
 					})
 
 					It("should return an error", func() {
-						Expect(aufsCake.Create(namespacedChildID, parentID, "")).NotTo(Succeed())
+						Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).NotTo(Succeed())
 					})
 				})
 
 				It("keeps parent-child relationship information", func() {
 					cake.IsLeafReturns(true, nil)
-					Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
+					Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
 
 					isLeaf, err := aufsCake.IsLeaf(parentID)
 					Expect(err).NotTo(HaveOccurred())
@@ -411,7 +416,7 @@ var _ = Describe("Aufs", func() {
 						return img, nil
 					}
 
-					Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
+					Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
 					img, err := aufsCake.Get(namespacedChildID)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(img.Parent).To(Equal(parentID.GraphID()))
@@ -419,8 +424,8 @@ var _ = Describe("Aufs", func() {
 
 				Context("when there are two namespaced children to one parent", func() {
 					It("removing the first child doesn't destroy all the metadata", func() {
-						Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
-						Expect(aufsCake.Create(otherNamespacedChildID, parentID, "")).To(Succeed())
+						Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
+						Expect(aufsCake.Create(otherNamespacedChildID, parentID, "", 14)).To(Succeed())
 
 						Expect(aufsCake.Remove(namespacedChildID)).To(Succeed())
 						isLeaf, err := aufsCake.IsLeaf(parentID)
@@ -429,8 +434,8 @@ var _ = Describe("Aufs", func() {
 					})
 
 					It("removing the second child doesn't destroy all the metadata", func() {
-						Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
-						Expect(aufsCake.Create(otherNamespacedChildID, parentID, "")).To(Succeed())
+						Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
+						Expect(aufsCake.Create(otherNamespacedChildID, parentID, "", 14)).To(Succeed())
 
 						Expect(aufsCake.Remove(otherNamespacedChildID)).To(Succeed())
 						isLeaf, err := aufsCake.IsLeaf(parentID)
@@ -439,8 +444,8 @@ var _ = Describe("Aufs", func() {
 					})
 
 					It("keeps metadata on both of them", func() {
-						Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
-						Expect(aufsCake.Create(otherNamespacedChildID, parentID, "")).To(Succeed())
+						Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
+						Expect(aufsCake.Create(otherNamespacedChildID, parentID, "", 14)).To(Succeed())
 
 						Expect(aufsCake.Remove(otherNamespacedChildID)).To(Succeed())
 						Expect(aufsCake.Remove(namespacedChildID)).To(Succeed())
@@ -489,8 +494,8 @@ var _ = Describe("Aufs", func() {
 					return "", testError
 				}
 
-				Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
-				Expect(aufsCake.Create(otherNamespacedChildID, parentID, "")).To(Succeed())
+				Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
+				Expect(aufsCake.Create(otherNamespacedChildID, parentID, "", 14)).To(Succeed())
 
 				namespacedChildID = layercake.DockerImageID(namespacedChildID.GraphID())
 				otherNamespacedChildID = layercake.DockerImageID(otherNamespacedChildID.GraphID())
@@ -631,7 +636,7 @@ var _ = Describe("Aufs", func() {
 			})
 
 			JustBeforeEach(func() {
-				Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
+				Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
 			})
 
 			Context("when the base directory does not exist", func() {
@@ -643,7 +648,7 @@ var _ = Describe("Aufs", func() {
 
 			Context("when it has sibling", func() {
 				JustBeforeEach(func() {
-					Expect(aufsCake.Create(otherNamespacedChildID, parentID, "")).To(Succeed())
+					Expect(aufsCake.Create(otherNamespacedChildID, parentID, "", 14)).To(Succeed())
 				})
 
 				It("should not make the parent a leaf when removing the first child", func() {
@@ -793,7 +798,7 @@ var _ = Describe("Aufs", func() {
 					return false, testError
 				}
 
-				Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
+				Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
 			})
 
 			It("should be a leaf", func() {
@@ -910,7 +915,7 @@ var _ = Describe("Aufs", func() {
 			JustBeforeEach(func() {
 				cake.GetAllLeavesReturns([]layercake.ID{layercake.DockerImageID("graph-id"), layercake.DockerImageID("test")}, nil)
 				// create cloned layer
-				Expect(aufsCake.Create(namespacedChildID, parentID, "")).To(Succeed())
+				Expect(aufsCake.Create(namespacedChildID, parentID, "", 14)).To(Succeed())
 			})
 
 			It("should get all leaves", func() {

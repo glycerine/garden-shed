@@ -41,7 +41,7 @@ func (provider *ContainerLayerCreator) Create(id string, parentImage *repository
 	}
 
 	containerID := layercake.ContainerID(id)
-	if err := provider.graph.Create(containerID, imageID, id); err != nil {
+	if err := provider.graph.Create(containerID, imageID, id, spec.QuotaSize); err != nil {
 		return "", nil, err
 	}
 

@@ -52,8 +52,8 @@ var _ = Describe("Layer Creator", func() {
 		)
 	})
 
-	Describe("Create", func() {
-		Context("when the namespace parameter is false", func() {
+	FDescribe("Create", func() {
+		FContext("when the namespace parameter is false", func() {
 			It("creates a graph entry with it as the parent", func() {
 				fakeCake.PathReturns("/some/graph/driver/mount/point", nil)
 
@@ -65,16 +65,17 @@ var _ = Describe("Layer Creator", func() {
 					},
 					rootfs_provider.Spec{
 						Namespaced: false,
-						QuotaSize:  0,
+						QuotaSize:  14,
 					},
 				)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(fakeCake.CreateCallCount()).To(Equal(1))
-				id, parent, containerID := fakeCake.CreateArgsForCall(0)
+				id, parent, containerID, quota := fakeCake.CreateArgsForCall(0)
 				Expect(id).To(Equal(layercake.ContainerID("some-id")))
 				Expect(parent).To(Equal(layercake.DockerImageID("some-image-id")))
 				Expect(containerID).To(Equal("some-id"))
+				Expect(quota).To(Equal(14))
 
 				Expect(mountpoint).To(Equal("/some/graph/driver/mount/point"))
 				Expect(envvars).To(Equal(

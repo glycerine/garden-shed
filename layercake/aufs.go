@@ -25,9 +25,9 @@ type AufsCake struct {
 	GraphRoot string
 }
 
-func (a *AufsCake) Create(childID, parentID ID, id string) error {
+func (a *AufsCake) Create(childID, parentID ID, id string, quota int64) error {
 	if _, ok := childID.(NamespacedLayerID); !ok {
-		return a.Cake.Create(childID, parentID, id)
+		return a.Cake.Create(childID, parentID, id, quota)
 	}
 
 	if isAlreadyNamespaced, err := a.hasInfo(a.childParentDir(), childID); err != nil {
@@ -36,7 +36,7 @@ func (a *AufsCake) Create(childID, parentID ID, id string) error {
 		return fmt.Errorf("%s already exists", childID.GraphID())
 	}
 
-	if err := a.Cake.Create(childID, DockerImageID(""), ""); err != nil {
+	if err := a.Cake.Create(childID, DockerImageID(""), "", quota); err != nil {
 		return err
 	}
 

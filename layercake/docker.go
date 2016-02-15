@@ -28,7 +28,7 @@ func (d *Docker) DriverName() string {
 	return d.Driver.String()
 }
 
-func (d *Docker) Create(layerID, parentID ID, containerID string) error {
+func (d *Docker) Create(layerID, parentID ID, containerID string, quota int64) error {
 	return d.Register(
 		&image.Image{
 			ID:        layerID.GraphID(),
