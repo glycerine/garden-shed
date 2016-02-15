@@ -31,7 +31,6 @@ func (g *OvenCleaner) GC(log lager.Logger, cake Cake) error {
 	log = log.Session("gc")
 	log.Info("start")
 
-	println("GRAPHCLEANUPTHRESHOLD ", g.GraphCleanupThreshold)
 	if g.GraphCleanupThreshold < 0 {
 		log.Debug("stop-image-cleanup-disabled")
 		return nil
