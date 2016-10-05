@@ -1,4 +1,4 @@
-// Abstracts a layered filesystem provider, such as docker's Graph
+// Abstracts a layered filesystem provider, such as docker's ImageStore
 package layercake
 
 import (
@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/docker/docker/daemon/graphdriver"
-	"github.com/docker/docker/graph"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
 )
@@ -20,8 +19,8 @@ type QuotaedDriver interface {
 }
 
 type Docker struct {
-	Graph  *graph.Graph
-	Driver graphdriver.Driver
+	ImageStore *image.Store
+	Driver     graphdriver.Driver
 }
 
 func (d *Docker) DriverName() string {
@@ -38,11 +37,11 @@ func (d *Docker) Create(layerID, parentID ID, containerID string) error {
 }
 
 func (d *Docker) Register(image *image.Image, layer archive.ArchiveReader) error {
-	return d.Graph.Register(&descriptor{image}, layer)
+	return d.ImageStore.Register(&descriptor{image}, layer)
 }
 
 func (d *Docker) Get(id ID) (*image.Image, error) {
-	return d.Graph.Get(id.GraphID())
+	return d.ImageStore.Get(id.GraphID())
 }
 
 func (d *Docker) Unmount(id ID) error {
@@ -54,7 +53,7 @@ func (d *Docker) Remove(id ID) error {
 		return err
 	}
 
-	return d.Graph.Delete(id.GraphID())
+	return d.ImageStore.Delete(id.GraphID())
 }
 
 func (d *Docker) Path(id ID) (string, error) {
@@ -70,20 +69,20 @@ func (d *Docker) QuotaedPath(id ID, quota int64) (string, error) {
 }
 
 func (d *Docker) All() (layers []*image.Image) {
-	for _, layer := range d.Graph.Map() {
+	for _, layer := range d.ImageStore.Map() {
 		layers = append(layers, layer)
 	}
 	return layers
 }
 
 func (d *Docker) IsLeaf(id ID) (bool, error) {
-	heads := d.Graph.Heads()
+	heads := d.ImageStore.Heads()
 	_, ok := heads[id.GraphID()]
 	return ok, nil
 }
 
 func (d *Docker) GetAllLeaves() ([]ID, error) {
-	heads := d.Graph.Heads()
+	heads := d.ImageStore.Heads()
 	var result []ID
 
 	for head := range heads {
