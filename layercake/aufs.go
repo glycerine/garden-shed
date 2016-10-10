@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/docker/distribution/digest"
 	"github.com/docker/docker/image"
 )
 
@@ -121,7 +122,7 @@ func (a *AufsCake) Get(id ID) (*image.Image, error) {
 			return nil, err
 		}
 
-		img.Parent = strings.TrimSpace(parentData)
+		img.Parent = image.ID(digest.Digest(strings.TrimSpace(parentData)))
 	}
 	return img, nil
 }

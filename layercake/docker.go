@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/docker/distribution/digest"
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
@@ -19,7 +20,7 @@ type QuotaedDriver interface {
 }
 
 type Docker struct {
-	ImageStore *image.Store
+	ImageStore image.Store
 	Driver     graphdriver.Driver
 }
 
@@ -30,18 +31,17 @@ func (d *Docker) DriverName() string {
 func (d *Docker) Create(layerID, parentID ID, containerID string) error {
 	return d.Register(
 		&image.Image{
-			ID:        layerID.GraphID(),
-			Parent:    parentID.GraphID(),
-			Container: containerID,
+			V1Image: image.V1Image{ID: layerID.GraphID(), Container: containerID, Parent: parentID.GraphID()},
+			Parent:  image.ID(digest.Digest(parentID.GraphID())),
 		}, nil)
 }
 
-func (d *Docker) Register(image *image.Image, layer archive.ArchiveReader) error {
+func (d *Docker) Register(image *image.Image, layer archive.Reader) error {
 	return d.ImageStore.Register(&descriptor{image}, layer)
 }
 
 func (d *Docker) Get(id ID) (*image.Image, error) {
-	return d.ImageStore.Get(id.GraphID())
+	return d.ImageStore.Get(image.ID(digest.Digest(id.GraphID())))
 }
 
 func (d *Docker) Unmount(id ID) error {
@@ -53,7 +53,8 @@ func (d *Docker) Remove(id ID) error {
 		return err
 	}
 
-	return d.ImageStore.Delete(id.GraphID())
+	_, err := d.ImageStore.Delete(image.ID(digest.Digest(id.GraphID())))
+	return err
 }
 
 func (d *Docker) Path(id ID) (string, error) {
@@ -77,7 +78,7 @@ func (d *Docker) All() (layers []*image.Image) {
 
 func (d *Docker) IsLeaf(id ID) (bool, error) {
 	heads := d.ImageStore.Heads()
-	_, ok := heads[id.GraphID()]
+	_, ok := heads[image.ID(digest.Digest(id.GraphID()))]
 	return ok, nil
 }
 
@@ -138,11 +139,11 @@ type descriptor struct {
 }
 
 func (d descriptor) ID() string {
-	return d.image.ID
+	return d.image.V1Image.ID
 }
 
 func (d descriptor) Parent() string {
-	return d.image.Parent
+	return d.image.V1Image.Parent
 }
 
 func (d descriptor) MarshalConfig() ([]byte, error) {

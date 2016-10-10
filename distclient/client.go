@@ -10,11 +10,12 @@ import (
 	"time"
 
 	"github.com/docker/docker/image"
+	"github.com/docker/docker/reference"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/docker/distribution"
 	"github.com/docker/distribution/digest"
-	"github.com/docker/distribution/manifest"
+	"github.com/docker/distribution/manifest/schema1"
 	"github.com/docker/distribution/registry/client"
 	"github.com/docker/distribution/registry/client/auth"
 	"github.com/docker/distribution/registry/client/transport"
@@ -57,7 +58,12 @@ func (d dialer) Dial(logger lager.Logger, host, repo string) (Conn, error) {
 		return nil, err
 	}
 
-	repoClient, err := client.NewRepository(context.TODO(), repo, host, transport)
+	name, err := reference.ParseNamed(repo)
+	if err != nil {
+		logger.Error("failed-to-parse-name", err)
+		return nil, err
+	}
+	repoClient, err := client.NewRepository(context.TODO(), name, host, transport)
 	if err != nil {
 		logger.Error("failed-to-construct-repository", err)
 		return nil, err
@@ -72,10 +78,16 @@ func (r *conn) GetManifest(logger lager.Logger, tag string) (*Manifest, error) {
 		logger.Error("failed-to-construct-manifest-service", err)
 		return nil, err
 	}
+	tagService := r.client.Tags(context.TODO())
 
-	layer, err := manifestService.GetByTag(tag)
+	descriptor, err := tagService.Get(context.TODO(), tag)
 	if err != nil {
 		logger.Error("failed-to-get-by-tag", err)
+		return nil, err
+	}
+	layer, err := manifestService.Get(context.TODO(), descriptor.Digest)
+	if err != nil {
+		logger.Error("failed-to-get-layer", err)
 		return nil, err
 	}
 
@@ -93,7 +105,7 @@ func (r *conn) GetBlobReader(logger lager.Logger, digest digest.Digest) (io.Read
 	return blobStore.Open(context.TODO(), digest)
 }
 
-func toLayers(fsl []manifest.FSLayer, history []manifest.History) (r []Layer, err error) {
+func toLayers(fsl []schema1.FSLayer, history []schema1.History) (r []Layer, err error) {
 	var parent digest.Digest
 	for i := len(fsl) - 1; i >= 0; i-- {
 		var img image.Image
